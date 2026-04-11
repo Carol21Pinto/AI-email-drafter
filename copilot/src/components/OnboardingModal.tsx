@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Mail, Upload, User, Check, CheckCheck, FileText, Link,
-  Sparkles, X, ChevronRight,
+  Sparkles, X, ChevronRight, Loader2
 } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
 
 interface OnboardingData {
   name: string;
@@ -28,12 +29,16 @@ const STEPS = [
 
 export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
   const [step, setStep] = useState(1);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Default state updated to match your actual profile
   const [data, setData] = useState<OnboardingData>({
-    name: "Arjun Kumar",
+    name: "Ashith Joswa Fernandes",
     email: "",
-    portfolio: "https://arjunkumar.dev",
-    targetTitles: "Software Engineer, Frontend Developer, ML Engineer",
-    bio: "Final-year CS student specialising in full-stack development and applied ML. Published research on 3D tooth and pulp segmentation using PyTorch.",
+    portfolio: "",
+    targetTitles: "Software Engineer, Full Stack Developer, AI Engineer",
+    bio: "M.Sc. Software Technology student specializing in MERN stack, Next.js, and AI/ML research. Experienced in building automated tools and predictive models.",
     resumeFile: null,
     gmailConnected: false,
   });
@@ -44,12 +49,51 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
     step === 3;
 
   function connectGmail() {
-    setData((d) => ({ ...d, gmailConnected: true, email: "arjun.kumar@gmail.com" }));
+    // This remains simulated until you build the OAuth flow
+    setData((d) => ({ ...d, gmailConnected: true, email: "ashith@gmail.com" }));
   }
 
-  function simulateUpload() {
-    setData((d) => ({ ...d, resumeFile: "Arjun_Kumar_Resume_2025.pdf" }));
+  async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      alert("Please upload a PDF file.");
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      // Use a timestamp to ensure the file is always fresh and avoids browser caching
+      const fileName = `resume_${Date.now()}.pdf`;
+      
+      const { data: uploadData, error } = await supabase.storage
+        .from('resumes')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (error) throw error;
+
+      // Get the public URL to save in state
+      const { data: { publicUrl } } = supabase.storage
+        .from('resumes')
+        .getPublicUrl(fileName);
+
+      setData((d) => ({ ...d, resumeFile: publicUrl }));
+      
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Failed to upload resume. Check your Supabase settings.");
+    } finally {
+      setIsUploading(false);
+    }
   }
+
+  // Helper to extract just the filename from the long Supabase URL for a cleaner UI
+  const displayFileName = data.resumeFile ? data.resumeFile.split('/').pop() : "";
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-start justify-center px-4 py-12">
@@ -97,6 +141,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
 
         {/* Card */}
         <div className="bg-white border border-slate-200 rounded-2xl p-7">
+          
           {/* Step 1 */}
           {step === 1 && (
             <div>
@@ -105,7 +150,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                   <Mail size={22} className="text-indigo-600" />
                 </div>
                 <p className="text-base font-medium text-slate-900 mb-1">Connect your email</p>
-                <p className="text-sm text-slate-500">CoPilot needs email access to send applications and track read receipts on your behalf.</p>
+                <p className="text-sm text-slate-500">CoPilot needs email access to send applications on your behalf.</p>
               </div>
 
               {data.gmailConnected ? (
@@ -125,29 +170,6 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                   Connect Gmail
                 </button>
               )}
-
-              <div className="flex items-center gap-3 my-4">
-                <div className="flex-1 h-px bg-slate-100" />
-                <span className="text-xs text-slate-400">or use SMTP</span>
-                <div className="flex-1 h-px bg-slate-100" />
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">SMTP Host</label>
-                  <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" placeholder="smtp.gmail.com" />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">Email</label>
-                    <input className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" placeholder="you@gmail.com" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">App Password</label>
-                    <input type="password" className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" placeholder="••••••••" />
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
@@ -159,11 +181,20 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                 This resume will be used for all applications until you decide to update it here.
               </p>
 
+              {/* Hidden File Input */}
+              <input
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+              />
+
               {data.resumeFile ? (
                 <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-4">
                   <FileText size={16} className="text-emerald-600 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-emerald-700 truncate">{data.resumeFile}</p>
+                    <p className="text-sm font-medium text-emerald-700 truncate">{displayFileName}</p>
                     <p className="text-xs text-emerald-600">Active resume · Will be used for all applications</p>
                   </div>
                   <button
@@ -175,27 +206,22 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                 </div>
               ) : (
                 <div
-                  onClick={simulateUpload}
-                  className="border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-8 text-center cursor-pointer transition-colors mb-4 group"
+                  onClick={() => !isUploading && fileInputRef.current?.click()}
+                  className={`border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-xl p-8 text-center cursor-pointer transition-colors mb-4 group ${isUploading ? 'opacity-50 cursor-wait' : ''}`}
                 >
-                  <Upload size={26} className="text-slate-300 group-hover:text-indigo-400 mx-auto mb-2 transition-colors" />
+                  {isUploading ? (
+                    <Loader2 size={26} className="text-indigo-400 animate-spin mx-auto mb-2" />
+                  ) : (
+                    <Upload size={26} className="text-slate-300 group-hover:text-indigo-400 mx-auto mb-2 transition-colors" />
+                  )}
                   <p className="text-sm text-slate-500 mb-1">
-                    Drop your resume here, or{" "}
-                    <span className="text-indigo-600">browse to upload</span>
+                    {isUploading ? "Uploading to secure cloud..." : (
+                      <>Drop your resume here, or <span className="text-indigo-600">browse to upload</span></>
+                    )}
                   </p>
-                  <p className="text-xs text-slate-400">PDF or DOCX, max 5 MB</p>
+                  <p className="text-xs text-slate-400">PDF only, max 5 MB</p>
                 </div>
               )}
-
-              <div className="flex items-center gap-3 my-4">
-                <div className="flex-1 h-px bg-slate-100" />
-                <span className="text-xs text-slate-400">or paste as text</span>
-                <div className="flex-1 h-px bg-slate-100" />
-              </div>
-              <textarea
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs font-mono resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 h-24"
-                placeholder="Paste resume text here..."
-              />
             </div>
           )}
 
@@ -254,7 +280,8 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
             {step > 1 ? (
               <button
                 onClick={() => setStep((s) => s - 1)}
-                className="text-sm text-slate-500 hover:text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors"
+                disabled={isUploading}
+                className="text-sm text-slate-500 hover:text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
               >
                 Back
               </button>
@@ -264,9 +291,9 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
             {step < 3 ? (
               <button
                 onClick={() => canProceed && setStep((s) => s + 1)}
-                disabled={!canProceed}
+                disabled={!canProceed || isUploading}
                 className={`flex items-center gap-2 bg-indigo-600 text-white text-sm font-medium px-5 py-2 rounded-xl transition-all
-                  ${canProceed ? "hover:bg-indigo-700" : "opacity-40 cursor-not-allowed"}`}
+                  ${canProceed && !isUploading ? "hover:bg-indigo-700" : "opacity-40 cursor-not-allowed"}`}
               >
                 {step === 1 ? "Continue to Resume" : "Continue to Profile"}
                 <ChevronRight size={14} />

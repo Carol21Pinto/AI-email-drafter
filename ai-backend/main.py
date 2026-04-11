@@ -1,11 +1,16 @@
 import os
+import json
+import requests
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import google.generativeai as genai
 from dotenv import load_dotenv
 
-# 1. Load environment variables and configure Gemini
 load_dotenv()
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 
@@ -19,48 +24,102 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- Pydantic Models ---
 class JobApplicationRequest(BaseModel):
     company_name: str
     job_description: str
 
-# 2. Define the Gemini Model and System Instructions
-# This ensures the AI acts as a career assistant and doesn't hallucinate.
+class SendEmailRequest(BaseModel):
+    recipient_email: str
+    subject: str
+    body: str
+    resume_url: str | None = None
+
+# --- Gemini Configuration ---
 system_prompt = """
-You are an expert career assistant. Your task is to write a highly professional, concise job application email based on the provided Job Description.
-The applicant is a Software Developer specializing in full-stack web development (MERN stack, Next.js, React) and AI Engineering (NLP, LLM integrations).
-Rules:
-1. Highlight the applicant's matching skills.
-2. Do NOT invent past job titles.
-3. Keep the email under 200 words.
-4. Output ONLY the email text.
+You are an expert career assistant. You must extract information from the Job Description and draft an application email.
+The applicant specializes in full-stack web development (MERN stack, Next.js) and AI Engineering (NLP, predictive modeling).
+
+You MUST output ONLY valid JSON using this exact schema:
+{
+  "company": "Extracted company name (or 'Unknown')",
+  "role": "Extracted job title (or 'Unknown')",
+  "hr_email": "Extract the recruiter/HR email if it exists in the text. If no email is found, return an empty string.",
+  "email_draft": "A professional, confident email draft under 200 words highlighting relevant matching skills."
+}
 """
 
 model = genai.GenerativeModel(
     model_name='gemini-2.5-flash',
-    system_instruction=system_prompt
+    system_instruction=system_prompt,
+    generation_config={"response_mime_type": "application/json"}
 )
+
+# --- Endpoints ---
 
 @app.post("/api/generate-email")
 async def generate_email(request: JobApplicationRequest):
-    print("--> Received request. Contacting Gemini AI...")
-
+    print("--> Analyzing JD and extracting data via Gemini...")
     try:
-        # 3. Create the user prompt with the actual JD
-        user_prompt = f"Please draft an application email for this Job Description:\n\n{request.job_description}"
-        
-        # 4. Generate the response
+        user_prompt = f"Analyze this Job Description:\n\n{request.job_description}"
         response = model.generate_content(user_prompt)
-        ai_draft = response.text
-
-        print("--> Gemini generation successful.")
-
-        # 5. Return the AI text to Next.js
+        ai_data = json.loads(response.text)
+        
         return {
             "status": "success",
-            "generated_email": ai_draft.strip(),
-            "match_score": 88 # We keep this mocked for now
+            "company": ai_data.get("company", "Unknown"),
+            "role": ai_data.get("role", "Unknown"),
+            "hr_email": ai_data.get("hr_email", ""),
+            "generated_email": ai_data.get("email_draft", ""),
+            "match_score": 85
         }
-        
     except Exception as e:
         print(f"Error connecting to Gemini: {e}")
-        return {"status": "error", "message": "Failed to generate email"}
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/send-email")
+async def send_email(request: SendEmailRequest):
+    print(f"--> Preparing to send email to {request.recipient_email}...")
+    
+    sender_email = os.environ.get("SENDER_EMAIL")
+    sender_password = os.environ.get("SENDER_PASSWORD")
+
+    if not sender_email or not sender_password:
+        return {"status": "error", "message": "Email credentials missing in .env"}
+
+    try:
+        # 1. Construct the email shell
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = request.recipient_email
+        msg['Subject'] = request.subject
+
+        # 2. Add the text body
+        msg.attach(MIMEText(request.body, 'plain'))
+
+        # 3. Download and attach the resume from Supabase
+        if request.resume_url:
+            print(f"--> Downloading resume from Supabase...")
+            response = requests.get(request.resume_url)
+            response.raise_for_status() # Throws error if download fails
+
+            # Attach as PDF
+            pdf_attachment = MIMEApplication(response.content, _subtype="pdf")
+            pdf_attachment.add_header('Content-Disposition', 'attachment', filename='Ashith_Fernandes_Resume.pdf')
+            msg.attach(pdf_attachment)
+            print("--> Resume attached successfully.")
+
+        # 4. Connect to Gmail and send
+        print("--> Connecting to Gmail SMTP server...")
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.send_message(msg)
+        server.quit()
+
+        print("--> Email sent successfully!")
+        return {"status": "success", "message": "Email sent successfully!"}
+
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        return {"status": "error", "message": str(e)}
