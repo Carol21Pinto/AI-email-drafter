@@ -21,6 +21,9 @@ export default function HomePage() {
   const [page, setPage] = useState<Page>("analyzer");
   const [applications, setApplications] = useState<Application[]>(MOCK_APPLICATIONS);
   const [toasts, setToasts] = useState<ToastState[]>([]);
+  
+  // --- NEW: State to hold the Supabase URL ---
+  const [globalResumeUrl, setGlobalResumeUrl] = useState<string | null>(null);
 
   function addToast(message: string, type: "success" | "error" = "success") {
     const id = Date.now();
@@ -47,8 +50,15 @@ export default function HomePage() {
     addToast(`Email sent to ${company}! Application added to your dashboard.`);
   }
 
+  // --- NEW: Catch the URL when Onboarding finishes ---
+  function handleOnboardingComplete(url: string | null) {
+    setGlobalResumeUrl(url);
+    setOnboarded(true);
+  }
+
   if (!onboarded) {
-    return <OnboardingModal onComplete={() => setOnboarded(true)} />;
+    // Pass the handler so OnboardingModal can send the URL up
+    return <OnboardingModal onComplete={handleOnboardingComplete} />;
   }
 
   return (
@@ -61,7 +71,11 @@ export default function HomePage() {
 
       <main>
         {page === "analyzer" && (
-          <JobAnalyzer onApplicationSent={handleApplicationSent} />
+          // --- NEW: Pass the URL down into JobAnalyzer ---
+          <JobAnalyzer 
+            onApplicationSent={handleApplicationSent} 
+            resumeUrl={globalResumeUrl} 
+          />
         )}
         {page === "dashboard" && (
           <Dashboard

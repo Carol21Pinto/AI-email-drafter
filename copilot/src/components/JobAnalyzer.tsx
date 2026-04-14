@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Zap, FileText, RefreshCw, Send, Edit3, Copy, CheckCheck,
   Loader2, Sparkles, Check
@@ -35,7 +35,6 @@ function MatchRing({ pct, size = 72 }: MatchRingProps) {
   );
 }
 
-// NOTE: We added resumeUrl as an optional prop so the parent component can pass it down
 interface JobAnalyzerProps {
   onApplicationSent: (company: string, role: string, email: string) => void;
   resumeUrl?: string | null; 
@@ -52,9 +51,36 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
   const [emailContent, setEmailContent] = useState("");
   const [extractedData, setExtractedData] = useState({ company: "", role: "", recruiterEmail: "" });
   const [bulletCopied, setBulletCopied] = useState(false);
+  
+  // Image Upload State
+  const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [posterBase64, setPosterBase64] = useState<string | null>(null);
+  const posterInputRef = useRef<HTMLInputElement>(null);
+
+  // Convert image to Base64
+  function handlePosterUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please upload a valid image file (PNG, JPG, etc.).");
+      return;
+    }
+
+    setPosterFile(file);
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = (reader.result as string).split(',')[1];
+      setPosterBase64(base64String);
+    };
+    reader.readAsDataURL(file);
+  }
 
   async function handleAnalyze() {
-    if (!jdText.trim()) return;
+    // Stop if both text AND image are empty
+    if (!jdText.trim() && !posterBase64) return;
+    
     setState("loading");
 
     try {
@@ -64,6 +90,8 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
         body: JSON.stringify({
           company_name: "Pending AI Extraction", 
           job_description: jdText,
+          poster_base64: posterBase64,              // Send the image data
+          poster_mime_type: posterFile?.type || null // Send the image type
         }),
       });
 
@@ -74,12 +102,9 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
 
       setEmailContent(data.generated_email);
       
-      // ... inside handleAnalyze() ...
-      
       setAnalysis({
         company: data.company,
         role: data.role,
-        // PRIORITY: 1. Manual Box -> 2. AI Extraction -> 3. Blank
         recruiterEmail: manualEmail || data.hr_email || "", 
         matchScore: data.match_score, 
         matched: ["MERN", "Next.js", "React"], 
@@ -91,7 +116,7 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
       setExtractedData({
         company: data.company,
         role: data.role,
-        recruiterEmail: manualEmail || data.hr_email || "", // <-- UPDATE THIS LINE
+        recruiterEmail: manualEmail || data.hr_email || "", 
       });
 
       setState("analyzed");
@@ -109,17 +134,15 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
     setTimeout(() => { setState("analyzed"); }, 1200);
   }
 
-async function handleSend() {
+  async function handleSend() {
     if (!analysis) return;
 
-    // Basic validation to ensure we have an email to send to
     if (!extractedData.recruiterEmail || extractedData.recruiterEmail.trim() === "") {
       alert("Error: No recruiter email provided. Please enter an email address.");
       return;
     }
 
     try {
-      // 1. Tell Python to actually send the email
       const response = await fetch("http://localhost:8000/api/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -127,7 +150,7 @@ async function handleSend() {
           recipient_email: extractedData.recruiterEmail,
           subject: `Application for ${extractedData.role} - Ashith Joswa Fernandes`,
           body: emailContent,
-          resume_url: resumeUrl || null // Passes the Supabase link if it exists
+          resume_url: resumeUrl || null 
         }),
       });
 
@@ -137,13 +160,14 @@ async function handleSend() {
         throw new Error(data.message);
       }
 
-      // 2. If Python succeeds, update the dashboard and reset the UI
       onApplicationSent(extractedData.company, extractedData.role, extractedData.recruiterEmail);
       setState("idle");
       setJdText("");
       setManualEmail("");
       setAnalysis(null);
       setEditingEmail(false);
+      setPosterFile(null);    // Reset the image file
+      setPosterBase64(null);  // Reset the image data
       
       alert("Success! The email was sent through your Gmail.");
 
@@ -168,7 +192,7 @@ async function handleSend() {
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="mb-6">
         <h1 className="text-lg font-medium text-slate-900 mb-1">Job Analyzer</h1>
-        <p className="text-sm text-slate-500">Paste a job description and CoPilot will score your resume, draft your email, and send — all in one flow.</p>
+        <p className="text-sm text-slate-500">Paste a job description or upload a poster, and CoPilot will draft your email and send it.</p>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl p-5 mb-4">
@@ -185,7 +209,7 @@ async function handleSend() {
         </div>
 
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <label className="text-sm font-medium text-slate-700">Paste job description here</label>
+          <label className="text-sm font-medium text-slate-700">Provide job description</label>
           
           <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5">
             <FileText size={12} className="text-indigo-600" />
@@ -199,17 +223,35 @@ async function handleSend() {
           </div>
         </div>
 
+        {/* Poster Upload UI */}
+        <div className="mb-3 flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+          <span className="text-sm text-slate-600">Upload a job poster image (instead of pasting text)</span>
+          <input 
+            type="file" 
+            accept="image/*" 
+            className="hidden" 
+            ref={posterInputRef} 
+            onChange={handlePosterUpload} 
+          />
+          <button 
+            onClick={() => posterInputRef.current?.click()}
+            className="text-xs font-medium bg-white hover:bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-300 transition-colors"
+          >
+            {posterFile ? `Uploaded: ${posterFile.name}` : "🖼️ Upload Image"}
+          </button>
+        </div>
+
         <textarea
           value={jdText}
           onChange={(e) => setJdText(e.target.value)}
-          className={`w-full border border-slate-200 rounded-xl px-4 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all ${isAnalyzed ? "h-28" : "h-52"}`}
-          placeholder="Paste the full job description here — requirements, responsibilities, and tech stack. The more detail, the more accurate the ATS scoring..."
+          className={`w-full border border-slate-200 rounded-xl px-4 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all ${isAnalyzed ? "h-28" : "h-32"}`}
+          placeholder="...or paste the full text job description here."
         />
 
         <div className="flex justify-end mt-3">
           <button
             onClick={handleAnalyze}
-            disabled={isLoading || !jdText.trim()}
+            disabled={isLoading || (!jdText.trim() && !posterBase64)}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium text-sm px-5 py-2.5 rounded-xl transition-colors"
           >
             {isLoading ? (

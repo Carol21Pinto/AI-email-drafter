@@ -28,6 +28,8 @@ app.add_middleware(
 class JobApplicationRequest(BaseModel):
     company_name: str
     job_description: str
+    poster_base64: str | None = None      # <-- NEW: Accepts the image data
+    poster_mime_type: str | None = None   # <-- NEW: Accepts the image type (e.g., image/png)
 
 class SendEmailRequest(BaseModel):
     recipient_email: str
@@ -56,13 +58,30 @@ model = genai.GenerativeModel(
 )
 
 # --- Endpoints ---
-
+# --- 2. Update the Generate Endpoint ---
 @app.post("/api/generate-email")
 async def generate_email(request: JobApplicationRequest):
     print("--> Analyzing JD and extracting data via Gemini...")
     try:
-        user_prompt = f"Analyze this Job Description:\n\n{request.job_description}"
-        response = model.generate_content(user_prompt)
+        # Build the instructions for Gemini
+        prompt_text = "Analyze this Job Description."
+        if request.job_description:
+            prompt_text += f"\n\nText provided:\n{request.job_description}"
+        if request.poster_base64:
+            prompt_text += "\n\nAn image poster of the job description is also attached. Read the text from the image."
+
+        # Create a list of parts to send to Gemini
+        content_parts = [prompt_text]
+
+        # If an image was uploaded, attach it to the Gemini request
+        if request.poster_base64 and request.poster_mime_type:
+            content_parts.append({
+                "mime_type": request.poster_mime_type,
+                "data": request.poster_base64
+            })
+
+        # Send both text and image to the model at the same time
+        response = model.generate_content(content_parts)
         ai_data = json.loads(response.text)
         
         return {
@@ -76,7 +95,8 @@ async def generate_email(request: JobApplicationRequest):
     except Exception as e:
         print(f"Error connecting to Gemini: {e}")
         return {"status": "error", "message": str(e)}
-
+    
+    
 @app.post("/api/send-email")
 async def send_email(request: SendEmailRequest):
     print(f"--> Preparing to send email to {request.recipient_email}...")
