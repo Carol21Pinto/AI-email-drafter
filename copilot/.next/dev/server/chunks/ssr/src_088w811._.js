@@ -875,6 +875,7 @@ __turbopack_context__.s([
 ]);
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react-jsx-dev-runtime.js [app-ssr] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/node_modules/next/dist/server/route-modules/app-page/vendored/ssr/react.js [app-ssr] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__ = __turbopack_context__.i("[project]/src/lib/supabaseClient.ts [app-ssr] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$zap$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Zap$3e$__ = __turbopack_context__.i("[project]/node_modules/lucide-react/dist/esm/icons/zap.js [app-ssr] (ecmascript) <export default as Zap>");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$file$2d$text$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__FileText$3e$__ = __turbopack_context__.i("[project]/node_modules/lucide-react/dist/esm/icons/file-text.js [app-ssr] (ecmascript) <export default as FileText>");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$refresh$2d$cw$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__RefreshCw$3e$__ = __turbopack_context__.i("[project]/node_modules/lucide-react/dist/esm/icons/refresh-cw.js [app-ssr] (ecmascript) <export default as RefreshCw>");
@@ -884,6 +885,7 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$re
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$loader$2d$circle$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Loader2$3e$__ = __turbopack_context__.i("[project]/node_modules/lucide-react/dist/esm/icons/loader-circle.js [app-ssr] (ecmascript) <export default as Loader2>");
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$lucide$2d$react$2f$dist$2f$esm$2f$icons$2f$sparkles$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__$3c$export__default__as__Sparkles$3e$__ = __turbopack_context__.i("[project]/node_modules/lucide-react/dist/esm/icons/sparkles.js [app-ssr] (ecmascript) <export default as Sparkles>");
 "use client";
+;
 ;
 ;
 ;
@@ -909,7 +911,7 @@ function MatchRing({ pct, size = 72 }) {
                 strokeWidth: "5"
             }, void 0, false, {
                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                lineNumber: 24,
+                lineNumber: 25,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("circle", {
@@ -924,7 +926,7 @@ function MatchRing({ pct, size = 72 }) {
                 transform: `rotate(-90 ${cx} ${cy})`
             }, void 0, false, {
                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                lineNumber: 25,
+                lineNumber: 26,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("text", {
@@ -940,13 +942,13 @@ function MatchRing({ pct, size = 72 }) {
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                lineNumber: 31,
+                lineNumber: 32,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/components/JobAnalyzer.tsx",
-        lineNumber: 23,
+        lineNumber: 24,
         columnNumber: 5
     }, this);
 }
@@ -1047,6 +1049,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
             return;
         }
         try {
+            // 1. Call FastAPI to send the email (Existing code)
             const response = await fetch("http://localhost:8000/api/send-email", {
                 method: "POST",
                 headers: {
@@ -1060,21 +1063,50 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                 })
             });
             const data = await response.json();
-            if (data.status === "error") {
-                throw new Error(data.message);
+            if (data.status === "error") throw new Error(data.message);
+            // 2. NEW: Save to Supabase
+            const today = new Date().toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric"
+            });
+            const randomColor = [
+                "#635bff",
+                "#10b981",
+                "#ef4444",
+                "#f59e0b",
+                "#0ea5e9"
+            ][Math.floor(Math.random() * 5)];
+            const newApplication = {
+                company: extractedData.company,
+                role: extractedData.role,
+                status: "Applied",
+                date: today,
+                followUp: false,
+                logo: extractedData.company.charAt(0).toUpperCase(),
+                logoColor: randomColor,
+                recruiterEmail: extractedData.recruiterEmail
+            };
+            const { error: dbError } = await __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$supabaseClient$2e$ts__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["supabase"].from('applications').insert([
+                newApplication
+            ]);
+            if (dbError) {
+                console.error("Supabase Error:", dbError);
+                throw new Error("Email sent, but failed to save application to dashboard.");
             }
+            // 3. Reset UI (Existing code)
             onApplicationSent(extractedData.company, extractedData.role, extractedData.recruiterEmail);
             setState("idle");
             setJdText("");
             setManualEmail("");
             setAnalysis(null);
             setEditingEmail(false);
-            setPosterFile(null); // Reset the image file
-            setPosterBase64(null); // Reset the image data
-            alert("Success! The email was sent through your Gmail.");
+            setPosterFile(null);
+            setPosterBase64(null);
+            alert("Success! Application tracked and email sent.");
         } catch (error) {
-            console.error("Email dispatch failed:", error);
-            alert("Failed to send the email. Check your Python terminal for the exact error.");
+            console.error("Failed:", error);
+            alert(error instanceof Error ? error.message : "An error occurred.");
         }
     }
     function copyBullet() {
@@ -1097,7 +1129,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                         children: "Job Analyzer"
                     }, void 0, false, {
                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                        lineNumber: 194,
+                        lineNumber: 218,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -1105,13 +1137,13 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                         children: "Paste a job description or upload a poster, and CoPilot will draft your email and send it."
                     }, void 0, false, {
                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                        lineNumber: 195,
+                        lineNumber: 219,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                lineNumber: 193,
+                lineNumber: 217,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1125,7 +1157,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                 children: "Target Recruiter Email (Optional)"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 201,
+                                lineNumber: 225,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -1136,13 +1168,13 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                 className: "w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-all"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 202,
+                                lineNumber: 226,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                        lineNumber: 200,
+                        lineNumber: 224,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1153,7 +1185,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                 children: "Provide job description"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 212,
+                                lineNumber: 236,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1164,7 +1196,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                         className: "text-indigo-600"
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                        lineNumber: 215,
+                                        lineNumber: 239,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -1172,7 +1204,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                         children: "Active resume:"
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                        lineNumber: 216,
+                                        lineNumber: 240,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -1180,7 +1212,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                         children: "master_resume.pdf"
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                        lineNumber: 217,
+                                        lineNumber: 241,
                                         columnNumber: 13
                                     }, this),
                                     resumeUrl && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("a", {
@@ -1191,19 +1223,19 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                         children: "(View)"
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                        lineNumber: 219,
+                                        lineNumber: 243,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 214,
+                                lineNumber: 238,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                        lineNumber: 211,
+                        lineNumber: 235,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1214,7 +1246,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                 children: "Upload a job poster image (instead of pasting text)"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 228,
+                                lineNumber: 252,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -1225,7 +1257,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                 onChange: handlePosterUpload
                             }, void 0, false, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 229,
+                                lineNumber: 253,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -1234,13 +1266,13 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                 children: posterFile ? `Uploaded: ${posterFile.name}` : "🖼️ Upload Image"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 236,
+                                lineNumber: 260,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                        lineNumber: 227,
+                        lineNumber: 251,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
@@ -1250,7 +1282,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                         placeholder: "...or paste the full text job description here."
                     }, void 0, false, {
                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                        lineNumber: 244,
+                        lineNumber: 268,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1266,7 +1298,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                         className: "animate-spin"
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                        lineNumber: 258,
+                                        lineNumber: 282,
                                         columnNumber: 17
                                     }, this),
                                     "Analyzing…"
@@ -1277,7 +1309,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                         size: 14
                                     }, void 0, false, {
                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                        lineNumber: 260,
+                                        lineNumber: 284,
                                         columnNumber: 17
                                     }, this),
                                     "Analyze & Match"
@@ -1285,18 +1317,18 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                             }, void 0, true)
                         }, void 0, false, {
                             fileName: "[project]/src/components/JobAnalyzer.tsx",
-                            lineNumber: 252,
+                            lineNumber: 276,
                             columnNumber: 11
                         }, this)
                     }, void 0, false, {
                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                        lineNumber: 251,
+                        lineNumber: 275,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                lineNumber: 198,
+                lineNumber: 222,
                 columnNumber: 7
             }, this),
             isAnalyzed && analysis && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1310,7 +1342,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                 className: "text-indigo-500"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 269,
+                                lineNumber: 293,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -1318,13 +1350,13 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                 children: "Analysis complete"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 270,
+                                lineNumber: 294,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                        lineNumber: 268,
+                        lineNumber: 292,
                         columnNumber: 11
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1335,7 +1367,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                 children: "Extracted details"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 274,
+                                lineNumber: 298,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1360,7 +1392,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                 children: label
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                lineNumber: 282,
+                                                lineNumber: 306,
                                                 columnNumber: 19
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -1372,24 +1404,24 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                 className: "w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                lineNumber: 283,
+                                                lineNumber: 307,
                                                 columnNumber: 19
                                             }, this)
                                         ]
                                     }, key, true, {
                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                        lineNumber: 281,
+                                        lineNumber: 305,
                                         columnNumber: 17
                                     }, this))
                             }, void 0, false, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 275,
+                                lineNumber: 299,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                        lineNumber: 273,
+                        lineNumber: 297,
                         columnNumber: 11
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1400,7 +1432,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                 children: "ATS keyword match"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 294,
+                                lineNumber: 318,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1413,7 +1445,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                 pct: analysis.matchScore
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                lineNumber: 297,
+                                                lineNumber: 321,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -1421,13 +1453,13 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                 children: "match score"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                lineNumber: 298,
+                                                lineNumber: 322,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                        lineNumber: 296,
+                                        lineNumber: 320,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1440,7 +1472,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                         children: "Matched keywords"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                        lineNumber: 302,
+                                                        lineNumber: 326,
                                                         columnNumber: 19
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1450,18 +1482,18 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                                 children: k
                                                             }, k, false, {
                                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                                lineNumber: 305,
+                                                                lineNumber: 329,
                                                                 columnNumber: 23
                                                             }, this))
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                        lineNumber: 303,
+                                                        lineNumber: 327,
                                                         columnNumber: 19
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                lineNumber: 301,
+                                                lineNumber: 325,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1471,7 +1503,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                         children: "Missing keywords"
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                        lineNumber: 310,
+                                                        lineNumber: 334,
                                                         columnNumber: 19
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1481,30 +1513,30 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                                 children: k
                                                             }, k, false, {
                                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                                lineNumber: 313,
+                                                                lineNumber: 337,
                                                                 columnNumber: 23
                                                             }, this))
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                        lineNumber: 311,
+                                                        lineNumber: 335,
                                                         columnNumber: 19
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                lineNumber: 309,
+                                                lineNumber: 333,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                        lineNumber: 300,
+                                        lineNumber: 324,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 295,
+                                lineNumber: 319,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1518,7 +1550,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                 className: "text-indigo-500"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                lineNumber: 322,
+                                                lineNumber: 346,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -1526,13 +1558,13 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                 children: "AI-suggested resume bullet"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                lineNumber: 323,
+                                                lineNumber: 347,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                        lineNumber: 321,
+                                        lineNumber: 345,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1543,19 +1575,19 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                        lineNumber: 325,
+                                        lineNumber: 349,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 320,
+                                lineNumber: 344,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                        lineNumber: 293,
+                        lineNumber: 317,
                         columnNumber: 11
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1572,7 +1604,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                 className: "text-sky-500"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                lineNumber: 334,
+                                                lineNumber: 358,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -1580,13 +1612,13 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                 children: "AI-drafted email"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                lineNumber: 335,
+                                                lineNumber: 359,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                        lineNumber: 333,
+                                        lineNumber: 357,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1600,14 +1632,14 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                         size: 11
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                        lineNumber: 339,
+                                                        lineNumber: 363,
                                                         columnNumber: 19
                                                     }, this),
                                                     " Regenerate"
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                lineNumber: 338,
+                                                lineNumber: 362,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -1618,7 +1650,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                         size: 11
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                        lineNumber: 342,
+                                                        lineNumber: 366,
                                                         columnNumber: 19
                                                     }, this),
                                                     " ",
@@ -1626,7 +1658,7 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                lineNumber: 341,
+                                                lineNumber: 365,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -1637,26 +1669,26 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                                         size: 11
                                                     }, void 0, false, {
                                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                        lineNumber: 345,
+                                                        lineNumber: 369,
                                                         columnNumber: 19
                                                     }, this),
                                                     "Approve & Send"
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                                lineNumber: 344,
+                                                lineNumber: 368,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                        lineNumber: 337,
+                                        lineNumber: 361,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 332,
+                                lineNumber: 356,
                                 columnNumber: 13
                             }, this),
                             editingEmail ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("textarea", {
@@ -1665,32 +1697,32 @@ function JobAnalyzer({ onApplicationSent, resumeUrl }) {
                                 className: "w-full h-64 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400"
                             }, void 0, false, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 351,
+                                lineNumber: 375,
                                 columnNumber: 15
                             }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("pre", {
                                 className: "bg-slate-50 border border-slate-100 rounded-xl px-4 py-4 text-xs leading-relaxed whitespace-pre-wrap font-sans text-slate-700",
                                 children: emailContent
                             }, void 0, false, {
                                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                                lineNumber: 357,
+                                lineNumber: 381,
                                 columnNumber: 15
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/components/JobAnalyzer.tsx",
-                        lineNumber: 331,
+                        lineNumber: 355,
                         columnNumber: 11
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/components/JobAnalyzer.tsx",
-                lineNumber: 267,
+                lineNumber: 291,
                 columnNumber: 9
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/components/JobAnalyzer.tsx",
-        lineNumber: 192,
+        lineNumber: 216,
         columnNumber: 5
     }, this);
 }

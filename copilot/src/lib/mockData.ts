@@ -9,7 +9,7 @@ export interface Application {
   followUp: boolean;
   logo: string;
   logoColor: string;
-  recruiterEmail: string;
+  recruiterEmail: string[];
 }
 
 export interface AnalysisResult {

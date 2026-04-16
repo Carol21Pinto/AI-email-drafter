@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { LayoutGrid, List, Zap, AlertTriangle, Download } from "lucide-react";
+import { useState, useEffect } from "react";
+import { LayoutGrid, List, Zap, AlertTriangle, Download, ChevronDown } from "lucide-react";
 import { type Application, type AppStatus } from "@/lib/mockData";
+import { supabase } from "@/lib/supabaseClient";
 
 const STATUS_CONFIG: Record<AppStatus, { dot: string; bg: string; text: string; border: string }> = {
   Applied:      { dot: "#0ea5e9", bg: "bg-sky-50",     text: "text-sky-700",     border: "border-sky-200" },
@@ -23,13 +24,25 @@ function CompanyLogo({ app, size = 32 }: { app: Application; size?: number }) {
   );
 }
 
-function StatusBadge({ status }: { status: AppStatus }) {
-  const c = STATUS_CONFIG[status];
+// --- NEW: Interactive Dropdown Badge ---
+function EditableStatusBadge({ app, onUpdate }: { app: Application; onUpdate: (id: number, status: AppStatus) => void }) {
+  const c = STATUS_CONFIG[app.status];
+  
   return (
-    <span className={`inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-medium border ${c.bg} ${c.text} ${c.border}`}>
-      <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.dot }} />
-      {status}
-    </span>
+    <div className="relative inline-block">
+      <select
+        value={app.status}
+        onChange={(e) => onUpdate(app.id, e.target.value as AppStatus)}
+        className={`appearance-none cursor-pointer inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium border ${c.bg} ${c.text} ${c.border} pr-6 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-colors`}
+      >
+        <option value="Applied">Applied</option>
+        <option value="Interviewing">Interviewing</option>
+        <option value="Rejected">Rejected</option>
+      </select>
+      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2">
+        <ChevronDown size={12} className={c.text} />
+      </div>
+    </div>
   );
 }
 
@@ -49,12 +62,41 @@ interface DashboardProps {
 
 export default function Dashboard({ applications, onNewApplication }: DashboardProps) {
   const [view, setView] = useState<"kanban" | "table">("kanban");
+  
+  // --- NEW: Local state for Optimistic UI updates ---
+  const [localApps, setLocalApps] = useState<Application[]>(applications);
+
+  // Keep local state in sync if the parent passes new data (e.g. after sending a new email)
+  useEffect(() => {
+    setLocalApps(applications);
+  }, [applications]);
+
+  // --- NEW: Handle Database Updates ---
+  async function handleStatusUpdate(id: number, newStatus: AppStatus) {
+    // 1. Optimistic UI Update: Instantly change it on screen so it feels fast
+    setLocalApps((prevApps) => 
+      prevApps.map((app) => (app.id === id ? { ...app, status: newStatus } : app))
+    );
+
+    // 2. Background Database Update
+    const { error } = await supabase
+      .from("applications")
+      .update({ status: newStatus })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Failed to update status in Supabase:", error);
+      alert("Failed to save status change. Reverting.");
+      // Revert the UI back to the true database state
+      setLocalApps(applications); 
+    }
+  }
 
   const stats = [
-    { label: "Total sent",      value: applications.length },
-    { label: "Interviewing",    value: applications.filter((a) => a.status === "Interviewing").length },
-    { label: "Pending reply",   value: applications.filter((a) => a.status === "Applied").length },
-    { label: "Follow-ups due",  value: applications.filter((a) => a.followUp).length },
+    { label: "Total sent",      value: localApps.length },
+    { label: "Interviewing",    value: localApps.filter((a) => a.status === "Interviewing").length },
+    { label: "Pending reply",   value: localApps.filter((a) => a.status === "Applied").length },
+    { label: "Follow-ups due",  value: localApps.filter((a) => a.followUp).length },
   ];
 
   return (
@@ -96,9 +138,9 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {stats.map((s) => (
-          <div key={s.label} className="bg-slate-100 rounded-xl p-4">
+          <div key={s.label} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
             <p className="text-xs text-slate-500 mb-1">{s.label}</p>
-            <p className="text-2xl font-medium text-slate-900">{s.value}</p>
+            <p className="text-2xl font-semibold text-slate-900">{s.value}</p>
           </div>
         ))}
       </div>
@@ -107,16 +149,16 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
       {view === "kanban" && (
         <div className="flex gap-4 overflow-x-auto pb-2">
           {KANBAN_COLUMNS.map((col) => {
-            const colApps = applications.filter((a) => a.status === col);
+            const colApps = localApps.filter((a) => a.status === col);
             const c = STATUS_CONFIG[col];
             return (
-              <div key={col} className="flex-1 min-w-[200px]">
+              <div key={col} className="flex-1 min-w-[280px]">
                 <div className="flex items-center gap-2 mb-3">
                   <span className="w-2 h-2 rounded-full" style={{ background: c.dot }} />
                   <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{col}</span>
                   <span className="bg-slate-100 text-slate-500 text-xs px-2 py-0.5 rounded-full">{colApps.length}</span>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {colApps.length === 0 && (
                     <div className="border border-dashed border-slate-200 rounded-xl p-5 text-center text-xs text-slate-400">
                       No applications
@@ -125,21 +167,27 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
                   {colApps.map((app) => (
                     <div
                       key={app.id}
-                      className="bg-white border border-slate-200 hover:border-slate-300 rounded-2xl p-4 cursor-pointer transition-colors"
+                      className="bg-white border border-slate-200 hover:border-slate-300 rounded-2xl p-4 transition-colors shadow-sm"
                     >
                       <div className="flex items-start gap-3 mb-3">
-                        <CompanyLogo app={app} size={30} />
+                        <CompanyLogo app={app} size={36} />
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm text-slate-900 truncate">{app.role}</p>
+                          <p className="font-semibold text-sm text-slate-900 truncate">{app.role}</p>
                           <p className="text-xs text-slate-500">{app.company}</p>
                         </div>
                       </div>
+                      
                       {app.followUp && (
-                        <div className="mb-2">
+                        <div className="mb-3">
                           <FollowUpBadge />
                         </div>
                       )}
-                      <p className="text-xs text-slate-400">{app.date}</p>
+                      
+                      {/* NEW: Kanban Footer with Editable Status */}
+                      <div className="flex items-center justify-between pt-3 mt-1 border-t border-slate-50">
+                        <p className="text-xs text-slate-400 font-medium">{app.date}</p>
+                        <EditableStatusBadge app={app} onUpdate={handleStatusUpdate} />
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -151,46 +199,65 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
 
       {/* Table View */}
       {view === "table" && (
-        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
-            <span className="text-sm font-medium text-slate-700">{applications.length} applications</span>
-            <button className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors">
-              <Download size={11} />
-              Export to Excel
+        <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
+            <span className="text-sm font-semibold text-slate-700">{localApps.length} Applications</span>
+            <button className="flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-white transition-colors bg-white shadow-sm">
+              <Download size={13} />
+              Export CSV
             </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  {["Company", "Role", "Status", "Applied", "Follow-Up"].map((h) => (
-                    <th key={h} className="px-5 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider whitespace-nowrap">
+                <tr className="bg-white border-b border-slate-100">
+                  {/* NEW: Added Company Emails to headers */}
+                  {["Company", "Role", "Status", "Applied", "Company Emails", "Follow-Up"].map((h) => (
+                    <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                       {h}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody>
-                {applications.map((app) => (
-                  <tr
-                    key={app.id}
-                    className="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition-colors last:border-b-0"
-                  >
-                    <td className="px-5 py-3">
+              <tbody className="divide-y divide-slate-50">
+                {localApps.map((app) => (
+                  <tr key={app.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                        <CompanyLogo app={app} size={26} />
+                        <CompanyLogo app={app} size={28} />
                         <span className="text-sm font-medium text-slate-900">{app.company}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-3 text-sm text-slate-600 whitespace-nowrap">{app.role}</td>
-                    <td className="px-5 py-3"><StatusBadge status={app.status} /></td>
-                    <td className="px-5 py-3 text-xs text-slate-400 whitespace-nowrap">{app.date}</td>
-                    <td className="px-5 py-3">
-                      {app.followUp ? (
-                        <FollowUpBadge />
-                      ) : (
-                        <span className="text-xs text-slate-300">—</span>
-                      )}
+                    <td className="px-5 py-4 text-sm text-slate-600 font-medium">{app.role}</td>
+                    
+                    {/* NEW: Editable Status Column */}
+                    <td className="px-5 py-4">
+                      <EditableStatusBadge app={app} onUpdate={handleStatusUpdate} />
+                    </td>
+                    
+                    <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{app.date}</td>
+                    
+                    {/* NEW: Company Emails Column */}
+                    <td className="px-5 py-4 min-w-[180px]">
+                      <div className="flex flex-col gap-1.5">
+                        {app.companyEmails && app.companyEmails.length > 0 ? (
+                          app.companyEmails.map((email, idx) => (
+                            <a 
+                              key={idx} 
+                              href={`mailto:${email}`} 
+                              className="text-sm text-indigo-600 hover:text-indigo-800 hover:underline inline-block truncate max-w-[200px]"
+                            >
+                              {email}
+                            </a>
+                          ))
+                        ) : (
+                          <span className="text-sm text-slate-400 italic">No email saved</span>
+                        )}
+                      </div>
+                    </td>
+                    
+                    <td className="px-5 py-4">
+                      {app.followUp ? <FollowUpBadge /> : <span className="text-sm text-slate-300">—</span>}
                     </td>
                   </tr>
                 ))}

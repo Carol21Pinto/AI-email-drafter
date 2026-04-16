@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { supabase } from "@/lib/supabaseClient";
 import {
   Zap, FileText, RefreshCw, Send, Edit3, Copy, CheckCheck,
   Loader2, Sparkles, Check
@@ -98,7 +99,15 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
-      if (data.status === "error") throw new Error(data.message);
+      
+      if (data.status === "error") {
+        // Intercept the 429 Quota Error specifically
+        if (data.message.includes("429") || data.message.includes("quota")) {
+            throw new Error("We are analyzing a bit too fast! Please wait 20 seconds and try again.");
+        }
+        // Otherwise throw the standard error
+        throw new Error(data.message);
+      }
 
       setEmailContent(data.generated_email);
       
@@ -134,48 +143,71 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
     setTimeout(() => { setState("analyzed"); }, 1200);
   }
 
-  async function handleSend() {
-    if (!analysis) return;
+async function handleSend() {
+  if (!analysis) return;
 
-    if (!extractedData.recruiterEmail || extractedData.recruiterEmail.trim() === "") {
-      alert("Error: No recruiter email provided. Please enter an email address.");
-      return;
-    }
-
-    try {
-      const response = await fetch("http://localhost:8000/api/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recipient_email: extractedData.recruiterEmail,
-          subject: `Application for ${extractedData.role} - Ashith Joswa Fernandes`,
-          body: emailContent,
-          resume_url: resumeUrl || null 
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.status === "error") {
-        throw new Error(data.message);
-      }
-
-      onApplicationSent(extractedData.company, extractedData.role, extractedData.recruiterEmail);
-      setState("idle");
-      setJdText("");
-      setManualEmail("");
-      setAnalysis(null);
-      setEditingEmail(false);
-      setPosterFile(null);    // Reset the image file
-      setPosterBase64(null);  // Reset the image data
-      
-      alert("Success! The email was sent through your Gmail.");
-
-    } catch (error) {
-      console.error("Email dispatch failed:", error);
-      alert("Failed to send the email. Check your Python terminal for the exact error.");
-    }
+  if (!extractedData.recruiterEmail || extractedData.recruiterEmail.trim() === "") {
+    alert("Error: No recruiter email provided. Please enter an email address.");
+    return;
   }
+
+  try {
+    // 1. Call FastAPI to send the email (Existing code)
+    const response = await fetch("http://localhost:8000/api/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipient_email: extractedData.recruiterEmail,
+        subject: `Application for ${extractedData.role} - Ashith Joswa Fernandes`,
+        body: emailContent,
+        resume_url: resumeUrl || null 
+      }),
+    });
+
+    const data = await response.json();
+    if (data.status === "error") throw new Error(data.message);
+
+    // 2. NEW: Save to Supabase
+    const today = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const randomColor = ["#635bff", "#10b981", "#ef4444", "#f59e0b", "#0ea5e9"][Math.floor(Math.random() * 5)];
+
+    const newApplication = {
+      company: extractedData.company,
+      role: extractedData.role,
+      status: "Applied",
+      date: today,
+      followUp: false,
+      logo: extractedData.company.charAt(0).toUpperCase(),
+      logoColor: randomColor,
+      recruiterEmail: extractedData.recruiterEmail
+    };
+
+    const { error: dbError } = await supabase
+      .from('applications')
+      .insert([newApplication]);
+
+    if (dbError) {
+      console.error("Supabase Error:", dbError);
+      throw new Error("Email sent, but failed to save application to dashboard.");
+    }
+
+    // 3. Reset UI (Existing code)
+    onApplicationSent(extractedData.company, extractedData.role, extractedData.recruiterEmail);
+    setState("idle");
+    setJdText("");
+    setManualEmail("");
+    setAnalysis(null);
+    setEditingEmail(false);
+    setPosterFile(null);
+    setPosterBase64(null);
+    
+    alert("Success! Application tracked and email sent.");
+
+  } catch (error) {
+    console.error("Failed:", error);
+    alert(error instanceof Error ? error.message : "An error occurred.");
+  }
+}
   
   function copyBullet() {
     if (analysis) {

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import OnboardingModal from "@/components/OnboardingModal";
 import Navbar from "@/components/Navbar";
 import JobAnalyzer from "@/components/JobAnalyzer";
 import Dashboard from "@/components/Dashboard";
 import Toast from "@/components/Toast";
-import { MOCK_APPLICATIONS, type Application } from "@/lib/mockData";
+import { type Application } from "@/lib/mockData"; // Removed MOCK_APPLICATIONS
+import { supabase } from "@/lib/supabaseClient"; // NEW: Import Supabase
 
 type Page = "analyzer" | "dashboard";
 
@@ -19,11 +20,30 @@ interface ToastState {
 export default function HomePage() {
   const [onboarded, setOnboarded] = useState(false);
   const [page, setPage] = useState<Page>("analyzer");
-  const [applications, setApplications] = useState<Application[]>(MOCK_APPLICATIONS);
-  const [toasts, setToasts] = useState<ToastState[]>([]);
   
-  // --- NEW: State to hold the Supabase URL ---
+  // NEW: Start with an empty array instead of mock data
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [toasts, setToasts] = useState<ToastState[]>([]);
   const [globalResumeUrl, setGlobalResumeUrl] = useState<string | null>(null);
+
+  // --- NEW: Fetch applications from Supabase ---
+  async function fetchApplications() {
+    const { data, error } = await supabase
+      .from("applications")
+      .select("*")
+      .order("id", { ascending: false }); // Show newest first
+
+    if (error) {
+      console.error("Error fetching applications:", error);
+    } else if (data) {
+      setApplications(data as Application[]);
+    }
+  }
+
+  // NEW: Run the fetch when the page first loads
+  useEffect(() => {
+    fetchApplications();
+  }, []);
 
   function addToast(message: string, type: "success" | "error" = "success") {
     const id = Date.now();
@@ -35,29 +55,17 @@ export default function HomePage() {
   }
 
   function handleApplicationSent(company: string, role: string, email: string) {
-    const newApp: Application = {
-      id: Date.now(),
-      company,
-      role,
-      status: "Applied",
-      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      followUp: false,
-      logo: company[0].toUpperCase(),
-      logoColor: "#4f46e5",
-      recruiterEmail: email,
-    };
-    setApplications((prev) => [newApp, ...prev]);
+    // NEW: JobAnalyzer already saved it to Supabase, so we just re-fetch the live data!
+    fetchApplications();
     addToast(`Email sent to ${company}! Application added to your dashboard.`);
   }
 
-  // --- NEW: Catch the URL when Onboarding finishes ---
   function handleOnboardingComplete(url: string | null) {
     setGlobalResumeUrl(url);
     setOnboarded(true);
   }
 
   if (!onboarded) {
-    // Pass the handler so OnboardingModal can send the URL up
     return <OnboardingModal onComplete={handleOnboardingComplete} />;
   }
 
@@ -71,7 +79,6 @@ export default function HomePage() {
 
       <main>
         {page === "analyzer" && (
-          // --- NEW: Pass the URL down into JobAnalyzer ---
           <JobAnalyzer 
             onApplicationSent={handleApplicationSent} 
             resumeUrl={globalResumeUrl} 
