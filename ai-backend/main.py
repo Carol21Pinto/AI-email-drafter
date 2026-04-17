@@ -1,22 +1,31 @@
 import os
 import json
-import asyncio
+import time
 import requests
-import smtplib
+import base64
+import io
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import google.generativeai as genai
+from openai import OpenAI  
 from dotenv import load_dotenv
+from pypdf import PdfReader
 
+# Load environment variables from .env file
 load_dotenv()
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
+
+# Initialize using Groq's base URL and your Groq API key
+client = OpenAI(
+    api_key=os.environ.get("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1",
+)
 
 app = FastAPI()
 
+# Allow requests from your Next.js frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -29,63 +38,130 @@ app.add_middleware(
 class JobApplicationRequest(BaseModel):
     company_name: str
     job_description: str
+    applicant_name: str = "Applicant"
+    resume_text: str = "" 
     poster_base64: str | None = None      
     poster_mime_type: str | None = None   
 
 class SendEmailRequest(BaseModel):
-    recipient_emails: list[str]  # <-- UPDATED: Accepts an array of emails
+    recipient_emails: list[str]  
     subject: str
     body: str
     resume_url: str | None = None
+    user_email: str         
+    google_token: str       
 
-# --- Gemini Configuration ---
-system_prompt = """
-You are an expert career assistant. You must extract information from the Job Description and draft an application email.
-The applicant specializes in full-stack web development (MERN stack, Next.js) and AI Engineering (NLP, predictive modeling).
 
-You MUST output ONLY valid JSON using this exact schema:
-{
-  "company": "Extracted company name (or 'Unknown')",
-  "role": "Extracted job title (or 'Unknown')",
-  "hr_email": "Extract the recruiter/HR email if it exists in the text. If no email is found, return an empty string.",
-  "email_draft": "A professional, confident email draft under 200 words highlighting relevant matching skills."
-}
-"""
+# --- ENDPOINT 1: Parse the PDF Resume ---
+@app.post("/api/parse-resume")
+def parse_resume(file: UploadFile = File(...)):
+    print(f"--> Extracting text from uploaded resume: {file.filename}")
+    try:
+        pdf_bytes = file.file.read()
+        pdf_reader = PdfReader(io.BytesIO(pdf_bytes))
+        
+        extracted_text = ""
+        for page in pdf_reader.pages:
+            extracted_text += page.extract_text() + "\n"
+            
+        if not extracted_text.strip():
+            return {"status": "error", "message": "Could not extract any text from the PDF. It might be an image-based PDF."}
 
-model = genai.GenerativeModel(
-    model_name='gemini-2.5-flash',
-    system_instruction=system_prompt,
-    generation_config={"response_mime_type": "application/json"}
-)
+        system_prompt = """
+        You are an expert HR assistant. Extract the following information from the provided resume text.
+        Format your response EXACTLY as a JSON object with these keys:
+        {
+          "name": "Applicant's full name",
+          "portfolio": "A LinkedIn, GitHub, or Portfolio URL (if found, else empty string)",
+          "targetTitles": "3-4 likely target job titles based on their experience, comma-separated",
+          "bio": "A concise, professional 2-sentence summary of their core skills and experience."
+        }
+        """
 
-# --- Endpoints ---
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Resume Text:\n{extracted_text}"}
+            ],
+            temperature=0.3,
+            response_format={"type": "json_object"}
+        )
 
+        profile_data = json.loads(response.choices[0].message.content)
+
+        return {
+            "status": "success",
+            "profile": profile_data,
+            "raw_text": extracted_text
+        }
+
+    except Exception as e:
+        print(f"Failed to parse resume: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+# --- ENDPOINT 2: Generate the Email Draft ---
 @app.post("/api/generate-email")
-async def generate_email(request: JobApplicationRequest):
-    print("--> Analyzing JD and extracting data via Gemini...")
+def generate_email(request: JobApplicationRequest):
+    print(f"--> Analyzing JD for {request.applicant_name} via Groq...")
     
-    prompt_text = "Analyze this Job Description."
+    if not os.environ.get("GROQ_API_KEY"):
+        return {"status": "error", "message": "GROQ_API_KEY is missing from your backend .env file!"}
+
+    system_prompt = f"""
+    You are an expert career assistant. You must write an application email matching the applicant's resume to the Job Description.
+    
+    Applicant Name: {request.applicant_name}
+    Applicant Resume Context: {request.resume_text if request.resume_text else "Full-stack developer and AI engineer."}
+    
+    IMPORTANT DRAFTING INSTRUCTIONS:
+    1. The email MUST highlight specific projects, skills, or metrics from the 'Applicant Resume Context' that match the job.
+    2. DO NOT include a "Subject:" line inside the email_draft text.
+    3. DO NOT use placeholders like [Your Name] or [Company Name]. 
+    4. Sign off using EXACTLY the Applicant Name.
+
+    You MUST output ONLY valid JSON using this exact schema:
+    {{
+      "company": "Extracted company name",
+      "role": "Extracted job title",
+      "hr_email": "Extracted HR email (or empty string)",
+      "email_draft": "The personalized email text"
+    }}
+    """
+
+    user_content = []
     if request.job_description:
-        prompt_text += f"\n\nText provided:\n{request.job_description}"
-    if request.poster_base64:
-        prompt_text += "\n\nAn image poster of the job description is also attached. Read the text from the image."
-
-    content_parts = [prompt_text]
-
+        user_content.append({"type": "text", "text": f"Job Description:\n{request.job_description}"})
+    else:
+        user_content.append({"type": "text", "text": "Analyze the attached job poster."})
+    
     if request.poster_base64 and request.poster_mime_type:
-        content_parts.append({
-            "mime_type": request.poster_mime_type,
-            "data": request.poster_base64
+        user_content.append({
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:{request.poster_mime_type};base64,{request.poster_base64}"
+            }
         })
 
-    # UPDATED: Exponential Backoff for 429 Rate Limits
     max_retries = 3
-    retry_delay = 5  # Start with a 5-second wait
+    retry_delay = 2 
 
     for attempt in range(max_retries):
         try:
-            response = model.generate_content(content_parts)
-            ai_data = json.loads(response.text)
+            response = client.chat.completions.create(
+                model="meta-llama/llama-4-scout-17b-16e-instruct",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                temperature=0.7,
+                response_format={"type": "json_object"}, 
+                timeout=30.0 
+            )
+            
+            raw_content = response.choices[0].message.content
+            ai_data = json.loads(raw_content)
             
             return {
                 "status": "success",
@@ -98,52 +174,38 @@ async def generate_email(request: JobApplicationRequest):
             
         except Exception as e:
             error_msg = str(e)
-            # Check if the error is related to quota/rate limiting
-            if "429" in error_msg or "ResourceExhausted" in error_msg or "quota" in error_msg.lower():
-                print(f"Rate limit hit. Attempt {attempt + 1} of {max_retries}. Waiting {retry_delay}s...")
-                if attempt < max_retries - 1:
-                    await asyncio.sleep(retry_delay)
-                    retry_delay *= 2  # Double the wait time for the next retry (10s, 20s...)
-                else:
-                    return {"status": "error", "message": "AI is currently overloaded due to rate limits. Please wait 20 seconds and try again."}
+            if "429" in error_msg:
+                print(f"Rate limit hit. Waiting {retry_delay}s...")
+                time.sleep(retry_delay) 
+                retry_delay *= 2 
             else:
-                # If it's a different error (e.g., bad API key, parsing error), fail immediately
-                print(f"Error connecting to Gemini: {e}")
-                return {"status": "error", "message": error_msg}
+                if attempt == max_retries - 1:
+                    return {"status": "error", "message": f"Connection/Parsing error: {error_msg}."}
     
+    return {"status": "error", "message": "Failed after multiple retries."}
     
-@app.post("/api/send-email")
-async def send_email(request: SendEmailRequest):
-    print(f"--> Preparing to send emails to {request.recipient_emails}...")
-    
-    sender_email = os.environ.get("SENDER_EMAIL")
-    sender_password = os.environ.get("SENDER_PASSWORD")
 
-    if not sender_email or not sender_password:
-        return {"status": "error", "message": "Email credentials missing in .env"}
+# --- ENDPOINT 3: Send the Email via Gmail API ---
+@app.post("/api/send-email")
+def send_email(request: SendEmailRequest):
+    print(f"--> Preparing to send emails on behalf of {request.user_email}...")
+    
+    if not request.google_token:
+        return {"status": "error", "message": "Google Access Token is missing!"}
 
     try:
-        # 1. Download and attach the resume from Supabase ONCE
+        # Download the resume to attach
         pdf_attachment = None
         if request.resume_url:
-            print(f"--> Downloading resume from Supabase...")
             response = requests.get(request.resume_url)
             response.raise_for_status() 
-
             pdf_attachment = MIMEApplication(response.content, _subtype="pdf")
-            pdf_attachment.add_header('Content-Disposition', 'attachment', filename='Ashith_Fernandes_Resume.pdf')
-            print("--> Resume downloaded and prepped successfully.")
+            pdf_attachment.add_header('Content-Disposition', 'attachment', filename='Resume.pdf')
 
-        # 2. Connect to Gmail SMTP server ONCE
-        print("--> Connecting to Gmail SMTP server...")
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender_email, sender_password)
-
-        # 3. UPDATED: Loop through the recipient emails array and send individually
+        # Send using Google's Gmail API
         for email_address in request.recipient_emails:
             msg = MIMEMultipart()
-            msg['From'] = sender_email
+            msg['From'] = request.user_email
             msg['To'] = email_address
             msg['Subject'] = request.subject
             msg.attach(MIMEText(request.body, 'plain'))
@@ -151,14 +213,32 @@ async def send_email(request: SendEmailRequest):
             if pdf_attachment:
                 msg.attach(pdf_attachment)
 
-            server.send_message(msg)
-            print(f"--> Email sent successfully to {email_address}!")
+            # Gmail API requires a base64url encoded string
+            raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
 
-        # 4. Close the server connection
-        server.quit()
+            headers = {
+                "Authorization": f"Bearer {request.google_token}",
+                "Content-Type": "application/json"
+            }
+            
+            # Make the HTTP request to the standard Gmail API endpoint
+            gmail_response = requests.post(
+                "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+                headers=headers,
+                json={"raw": raw_message}
+            )
+            
+            # This will trigger the except block below if Google rejects the token or scopes
+            gmail_response.raise_for_status() 
 
         return {"status": "success", "message": f"Emails sent successfully to {len(request.recipient_emails)} recipient(s)!"}
 
+    except requests.exceptions.HTTPError as http_err:
+        # Catch specific HTTP errors from the Gmail API to pinpoint permission/token issues
+        error_details = http_err.response.text
+        print(f"Gmail API Error: {error_details}")
+        return {"status": "error", "message": f"Gmail API Error: {error_details}"}
+        
     except Exception as e:
         print(f"Failed to send email: {e}")
         return {"status": "error", "message": str(e)}

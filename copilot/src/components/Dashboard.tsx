@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { LayoutGrid, List, Zap, AlertTriangle, Download, ChevronDown } from "lucide-react";
+import { LayoutGrid, List, Zap, AlertTriangle, Download, ChevronDown, Trash2 } from "lucide-react";
 import { type Application, type AppStatus } from "@/lib/mockData";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -24,7 +24,6 @@ function CompanyLogo({ app, size = 32 }: { app: Application; size?: number }) {
   );
 }
 
-// --- NEW: Interactive Dropdown Badge ---
 function EditableStatusBadge({ app, onUpdate }: { app: Application; onUpdate: (id: number, status: AppStatus) => void }) {
   const c = STATUS_CONFIG[app.status];
   
@@ -62,23 +61,17 @@ interface DashboardProps {
 
 export default function Dashboard({ applications, onNewApplication }: DashboardProps) {
   const [view, setView] = useState<"kanban" | "table">("kanban");
-  
-  // --- NEW: Local state for Optimistic UI updates ---
   const [localApps, setLocalApps] = useState<Application[]>(applications);
 
-  // Keep local state in sync if the parent passes new data (e.g. after sending a new email)
   useEffect(() => {
     setLocalApps(applications);
   }, [applications]);
 
-  // --- NEW: Handle Database Updates ---
   async function handleStatusUpdate(id: number, newStatus: AppStatus) {
-    // 1. Optimistic UI Update: Instantly change it on screen so it feels fast
     setLocalApps((prevApps) => 
       prevApps.map((app) => (app.id === id ? { ...app, status: newStatus } : app))
     );
 
-    // 2. Background Database Update
     const { error } = await supabase
       .from("applications")
       .update({ status: newStatus })
@@ -87,8 +80,26 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
     if (error) {
       console.error("Failed to update status in Supabase:", error);
       alert("Failed to save status change. Reverting.");
-      // Revert the UI back to the true database state
       setLocalApps(applications); 
+    }
+  }
+
+  // --- NEW: Delete functionality ---
+  async function handleDelete(id: number) {
+    if (!window.confirm("Are you sure you want to delete this application?")) return;
+
+    // Optimistic UI Update
+    setLocalApps((prevApps) => prevApps.filter((app) => app.id !== id));
+
+    const { error } = await supabase
+      .from("applications")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Failed to delete from Supabase:", error);
+      alert("Failed to delete application. Reverting.");
+      setLocalApps(applications); // Revert on failure
     }
   }
 
@@ -101,7 +112,6 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
-      {/* Header */}
       <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
         <div>
           <h1 className="text-lg font-medium text-slate-900 mb-1">Application Dashboard</h1>
@@ -115,7 +125,6 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
             <Zap size={13} />
             New Application
           </button>
-          {/* View Toggle */}
           <div className="flex bg-slate-100 rounded-xl p-1 gap-0.5">
             <button
               onClick={() => setView("kanban")}
@@ -135,7 +144,6 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {stats.map((s) => (
           <div key={s.label} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
@@ -145,7 +153,6 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
         ))}
       </div>
 
-      {/* Kanban View */}
       {view === "kanban" && (
         <div className="flex gap-4 overflow-x-auto pb-2">
           {KANBAN_COLUMNS.map((col) => {
@@ -167,9 +174,17 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
                   {colApps.map((app) => (
                     <div
                       key={app.id}
-                      className="bg-white border border-slate-200 hover:border-slate-300 rounded-2xl p-4 transition-colors shadow-sm"
+                      className="bg-white border border-slate-200 hover:border-slate-300 rounded-2xl p-4 transition-colors shadow-sm relative group"
                     >
-                      <div className="flex items-start gap-3 mb-3">
+                      <button 
+                        onClick={() => handleDelete(app.id)}
+                        className="absolute top-3 right-3 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                        title="Delete application"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+
+                      <div className="flex items-start gap-3 mb-3 pr-6">
                         <CompanyLogo app={app} size={36} />
                         <div className="flex-1 min-w-0">
                           <p className="font-semibold text-sm text-slate-900 truncate">{app.role}</p>
@@ -183,7 +198,6 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
                         </div>
                       )}
                       
-                      {/* NEW: Kanban Footer with Editable Status */}
                       <div className="flex items-center justify-between pt-3 mt-1 border-t border-slate-50">
                         <p className="text-xs text-slate-400 font-medium">{app.date}</p>
                         <EditableStatusBadge app={app} onUpdate={handleStatusUpdate} />
@@ -197,7 +211,6 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
         </div>
       )}
 
-      {/* Table View */}
       {view === "table" && (
         <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 bg-slate-50/50">
@@ -211,9 +224,8 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
             <table className="w-full">
               <thead>
                 <tr className="bg-white border-b border-slate-100">
-                  {/* NEW: Added Company Emails to headers */}
-                  {["Company", "Role", "Status", "Applied", "Company Emails", "Follow-Up"].map((h) => (
-                    <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                  {["Company", "Role", "Status", "Applied", "Company Emails", "Follow-Up", ""].map((h, i) => (
+                    <th key={i} className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                       {h}
                     </th>
                   ))}
@@ -221,7 +233,7 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {localApps.map((app) => (
-                  <tr key={app.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={app.id} className="hover:bg-slate-50/50 transition-colors group">
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <CompanyLogo app={app} size={28} />
@@ -230,14 +242,12 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
                     </td>
                     <td className="px-5 py-4 text-sm text-slate-600 font-medium">{app.role}</td>
                     
-                    {/* NEW: Editable Status Column */}
                     <td className="px-5 py-4">
                       <EditableStatusBadge app={app} onUpdate={handleStatusUpdate} />
                     </td>
                     
                     <td className="px-5 py-4 text-sm text-slate-500 whitespace-nowrap">{app.date}</td>
                     
-                    {/* NEW: Company Emails Column */}
                     <td className="px-5 py-4 min-w-[180px]">
                       <div className="flex flex-col gap-1.5">
                         {app.companyEmails && app.companyEmails.length > 0 ? (
@@ -258,6 +268,17 @@ export default function Dashboard({ applications, onNewApplication }: DashboardP
                     
                     <td className="px-5 py-4">
                       {app.followUp ? <FollowUpBadge /> : <span className="text-sm text-slate-300">—</span>}
+                    </td>
+
+                    {/* NEW: Table Delete Button */}
+                    <td className="px-5 py-4 text-right">
+                      <button 
+                        onClick={() => handleDelete(app.id)}
+                        className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all p-1"
+                        title="Delete application"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </td>
                   </tr>
                 ))}

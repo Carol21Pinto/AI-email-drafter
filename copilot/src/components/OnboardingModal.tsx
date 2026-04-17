@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Mail, Upload, User, Check, CheckCheck, FileText, Link,
   Sparkles, X, ChevronRight, Loader2
@@ -14,6 +14,7 @@ interface OnboardingData {
   targetTitles: string;
   bio: string;
   resumeFile: string | null;
+  resumeText: string; // NEW: Hidden state to store the raw text for the DB
   gmailConnected: boolean;
 }
 
@@ -30,29 +31,57 @@ const STEPS = [
 export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
   const [step, setStep] = useState(1);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Default state updated to match your actual profile
   const [data, setData] = useState<OnboardingData>({
-    name: "Ashith Joswa Fernandes",
+    name: "",
     email: "",
     portfolio: "",
-    targetTitles: "Software Engineer, Full Stack Developer, AI Engineer",
-    bio: "M.Sc. Software Technology student specializing in MERN stack, Next.js, and AI/ML research. Experienced in building automated tools and predictive models.",
+    targetTitles: "",
+    bio: "",
     resumeFile: null,
+    resumeText: "", 
     gmailConnected: false,
   });
+
+  // --- NEW: Check for Google Session on load ---
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setData((d) => ({ ...d, gmailConnected: true, email: session.user.email || "" }));
+        // If they just got redirected back from Google, jump to Step 2
+        if (step === 1) setStep(2);
+      }
+    });
+  }, [step]);
 
   const canProceed =
     (step === 1 && data.gmailConnected) ||
     (step === 2 && !!data.resumeFile) ||
     step === 3;
 
-  function connectGmail() {
-    // This remains simulated until you build the OAuth flow
-    setData((d) => ({ ...d, gmailConnected: true, email: "ashith@gmail.com" }));
+  // --- NEW: Trigger actual Google OAuth ---
+async function connectGmail() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        scopes: 'https://www.googleapis.com/auth/gmail.send email profile',
+        // NEW: This forces Google to show the permission screen again
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        }
+      }
+    });
+    
+    if (error) {
+      console.error("OAuth error:", error);
+      alert("Failed to connect to Google.");
+    }
   }
-
+  // --- NEW: Upload to Supabase AND Parse with FastAPI ---
   async function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -65,34 +94,85 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
     setIsUploading(true);
 
     try {
-      // Use a timestamp to ensure the file is always fresh and avoids browser caching
+      // 1. Upload to Supabase Storage
       const fileName = `resume_${Date.now()}.pdf`;
-      
-      const { data: uploadData, error } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('resumes')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
+        .upload(fileName, file, { cacheControl: '3600', upsert: true });
 
-      if (error) throw error;
+      if (uploadError) throw uploadError;
 
-      // Get the public URL to save in state
-      const { data: { publicUrl } } = supabase.storage
-        .from('resumes')
-        .getPublicUrl(fileName);
+      const { data: { publicUrl } } = supabase.storage.from('resumes').getPublicUrl(fileName);
 
-      setData((d) => ({ ...d, resumeFile: publicUrl }));
+      // 2. Send the file to FastAPI to be read by Groq
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("http://localhost:8000/api/parse-resume", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("Backend failed to respond.");
       
+      const parsedData = await response.json();
+      if (parsedData.status === "error") throw new Error(parsedData.message);
+
+      // 3. Auto-fill the UI with the AI's extraction
+      setData((d) => ({ 
+        ...d, 
+        resumeFile: publicUrl,
+        name: parsedData.profile.name || d.name,
+        portfolio: parsedData.profile.portfolio || d.portfolio,
+        targetTitles: parsedData.profile.targetTitles || d.targetTitles,
+        bio: parsedData.profile.bio || d.bio,
+        resumeText: parsedData.raw_text // Save the raw text quietly in the background
+      }));
+      
+      // Auto-advance to the profile review step
+      setStep(3);
+
     } catch (error) {
-      console.error("Upload error:", error);
-      alert("Failed to upload resume. Check your Supabase settings.");
+      console.error("Upload/Parse error:", error);
+      alert("Uploaded successfully, but AI parsing failed. You can fill details manually.");
     } finally {
       setIsUploading(false);
     }
   }
 
-  // Helper to extract just the filename from the long Supabase URL for a cleaner UI
+  // --- NEW: Save Profile to Database ---
+  async function handleComplete() {
+    setIsSaving(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
+        throw new Error("No active user session. Please reconnect your email.");
+      }
+
+      // Upsert (Insert or Update) the profile record
+      const { error } = await supabase.from('profiles').upsert({
+        id: session.user.id,
+        full_name: data.name,
+        portfolio_url: data.portfolio,
+        target_titles: data.targetTitles,
+        bio: data.bio,
+        resume_url: data.resumeFile,
+        resume_text: data.resumeText,
+        onboarded: true
+      });
+
+      if (error) throw error;
+
+      onComplete(data.resumeFile);
+    } catch (error) {
+      console.error("Database save error:", error);
+      alert(error instanceof Error ? error.message : "Failed to save profile to database.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   const displayFileName = data.resumeFile ? data.resumeFile.split('/').pop() : "";
 
   return (
@@ -157,7 +237,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                 <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3 mb-4">
                   <CheckCheck size={16} className="text-emerald-600 shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-emerald-700">Gmail connected</p>
+                    <p className="text-sm font-medium text-emerald-700">Google authenticated</p>
                     <p className="text-xs text-emerald-600">{data.email}</p>
                   </div>
                 </div>
@@ -167,7 +247,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                   className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-xl text-sm mb-4 transition-colors"
                 >
                   <Mail size={15} />
-                  Connect Gmail
+                  Sign in with Google
                 </button>
               )}
             </div>
@@ -178,10 +258,9 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
             <div>
               <p className="text-base font-medium text-slate-900 mb-1">Upload your master resume</p>
               <p className="text-sm text-slate-500 mb-5">
-                This resume will be used for all applications until you decide to update it here.
+                Our AI will read your PDF and automatically build your profile.
               </p>
 
-              {/* Hidden File Input */}
               <input
                 type="file"
                 accept="application/pdf"
@@ -195,7 +274,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                   <FileText size={16} className="text-emerald-600 shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-emerald-700 truncate">{displayFileName}</p>
-                    <p className="text-xs text-emerald-600">Active resume · Will be used for all applications</p>
+                    <p className="text-xs text-emerald-600">Active resume · Profile generated!</p>
                   </div>
                   <button
                     onClick={() => setData((d) => ({ ...d, resumeFile: null }))}
@@ -215,7 +294,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                     <Upload size={26} className="text-slate-300 group-hover:text-indigo-400 mx-auto mb-2 transition-colors" />
                   )}
                   <p className="text-sm text-slate-500 mb-1">
-                    {isUploading ? "Uploading to secure cloud..." : (
+                    {isUploading ? "Reading and extracting text..." : (
                       <>Drop your resume here, or <span className="text-indigo-600">browse to upload</span></>
                     )}
                   </p>
@@ -227,10 +306,10 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
 
           {/* Step 3 */}
           {step === 3 && (
-            <div>
-              <p className="text-base font-medium text-slate-900 mb-1">Tell us about yourself</p>
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <p className="text-base font-medium text-slate-900 mb-1">Review your profile</p>
               <p className="text-sm text-slate-500 mb-5">
-                This helps the AI personalise every email and application it drafts.
+                We extracted this from your resume. Edit anything that looks incorrect.
               </p>
               <div className="space-y-4">
                 <div>
@@ -263,12 +342,12 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-1">
-                    Bio for AI context <span className="normal-case font-normal text-slate-400">(optional)</span>
+                    Bio for AI context
                   </label>
                   <textarea
                     value={data.bio}
                     onChange={(e) => setData((d) => ({ ...d, bio: e.target.value }))}
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 h-20"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 h-24"
                   />
                 </div>
               </div>
@@ -280,7 +359,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
             {step > 1 ? (
               <button
                 onClick={() => setStep((s) => s - 1)}
-                disabled={isUploading}
+                disabled={isUploading || isSaving}
                 className="text-sm text-slate-500 hover:text-slate-700 px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors disabled:opacity-50"
               >
                 Back
@@ -288,6 +367,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
             ) : (
               <div />
             )}
+            
             {step < 3 ? (
               <button
                 onClick={() => canProceed && setStep((s) => s + 1)}
@@ -300,11 +380,12 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
               </button>
             ) : (
               <button
-                onClick={() => onComplete(data.resumeFile)}
-                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors"
+                onClick={handleComplete}
+                disabled={isSaving}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-5 py-2.5 rounded-xl transition-colors disabled:opacity-50"
               >
-                <Sparkles size={14} />
-                Launch CoPilot
+                {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                {isSaving ? "Saving..." : "Launch CoPilot"}
               </button>
             )}
           </div>

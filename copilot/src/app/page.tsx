@@ -6,8 +6,8 @@ import Navbar from "@/components/Navbar";
 import JobAnalyzer from "@/components/JobAnalyzer";
 import Dashboard from "@/components/Dashboard";
 import Toast from "@/components/Toast";
-import { type Application } from "@/lib/mockData"; // Removed MOCK_APPLICATIONS
-import { supabase } from "@/lib/supabaseClient"; // NEW: Import Supabase
+import { type Application } from "@/lib/mockData"; 
+import { supabase } from "@/lib/supabaseClient"; 
 
 type Page = "analyzer" | "dashboard";
 
@@ -18,20 +18,45 @@ interface ToastState {
 }
 
 export default function HomePage() {
-  const [onboarded, setOnboarded] = useState(false);
+  const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [page, setPage] = useState<Page>("analyzer");
-  
-  // NEW: Start with an empty array instead of mock data
   const [applications, setApplications] = useState<Application[]>([]);
   const [toasts, setToasts] = useState<ToastState[]>([]);
   const [globalResumeUrl, setGlobalResumeUrl] = useState<string | null>(null);
 
-  // --- NEW: Fetch applications from Supabase ---
+  // --- Check if the user is already onboarded when they visit the site ---
+  useEffect(() => {
+    async function checkUserSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        setOnboarded(false); // No session = show modal to login
+        return;
+      }
+
+      // If they are logged in, check if they have a profile row
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('onboarded, resume_url')
+        .eq('id', session.user.id)
+        .single();
+
+      if (profile?.onboarded) {
+        setGlobalResumeUrl(profile.resume_url);
+        setOnboarded(true); // Skip the modal!
+      } else {
+        setOnboarded(false); // Show the modal so they can upload their resume
+      }
+    }
+
+    checkUserSession();
+  }, []);
+
   async function fetchApplications() {
     const { data, error } = await supabase
       .from("applications")
       .select("*")
-      .order("id", { ascending: false }); // Show newest first
+      .order("id", { ascending: false }); 
 
     if (error) {
       console.error("Error fetching applications:", error);
@@ -40,10 +65,11 @@ export default function HomePage() {
     }
   }
 
-  // NEW: Run the fetch when the page first loads
   useEffect(() => {
-    fetchApplications();
-  }, []);
+    if (onboarded) {
+      fetchApplications();
+    }
+  }, [onboarded]);
 
   function addToast(message: string, type: "success" | "error" = "success") {
     const id = Date.now();
@@ -55,7 +81,6 @@ export default function HomePage() {
   }
 
   function handleApplicationSent(company: string, role: string, email: string) {
-    // NEW: JobAnalyzer already saved it to Supabase, so we just re-fetch the live data!
     fetchApplications();
     addToast(`Email sent to ${company}! Application added to your dashboard.`);
   }
@@ -63,6 +88,11 @@ export default function HomePage() {
   function handleOnboardingComplete(url: string | null) {
     setGlobalResumeUrl(url);
     setOnboarded(true);
+  }
+
+  // Show nothing while checking Auth state to prevent flicker
+  if (onboarded === null) {
+    return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">Loading CoPilot...</div>;
   }
 
   if (!onboarded) {
