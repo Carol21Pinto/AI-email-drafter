@@ -110,23 +110,27 @@ def generate_email(request: JobApplicationRequest):
         return {"status": "error", "message": "GROQ_API_KEY is missing from your backend .env file!"}
 
     system_prompt = f"""
-    You are an expert career assistant. You must write an application email matching the applicant's resume to the Job Description.
+    You are an expert HR Recruiter. Write a SHORT, punchy, and professional job application email.
     
     Applicant Name: {request.applicant_name}
-    Applicant Resume Context: {request.resume_text if request.resume_text else "Full-stack developer and AI engineer."}
+    Context: {request.resume_text if request.resume_text else "Full-stack developer and AI engineer."}
     
-    IMPORTANT DRAFTING INSTRUCTIONS:
-    1. The email MUST highlight specific projects, skills, or metrics from the 'Applicant Resume Context' that match the job.
-    2. DO NOT include a "Subject:" line inside the email_draft text.
-    3. DO NOT use placeholders like [Your Name] or [Company Name]. 
-    4. Sign off using EXACTLY the Applicant Name.
+    STRICT RULES:
+    1. LENGTH: Keep the body under 150 words. Recruiters prefer brevity.
+    2. STRUCTURE: Use 3 short paragraphs: 
+       - Paragraph 1: Mention the specific role and why you are interested.
+       - Paragraph 2: Highlight ONLY the 2 most relevant technical skills or projects.
+       - Paragraph 3: Call to action (interview request) and sign-off.
+    3. TONE: Professional, confident, and direct. No "fluff" or "flowery" language.
+    4. NO PLACEHOLDERS: Do not use [Company Name] or [Date].
+    5. SIGN-OFF: Use exactly "{request.applicant_name}".
 
-    You MUST output ONLY valid JSON using this exact schema:
+    You MUST output ONLY valid JSON:
     {{
       "company": "Extracted company name",
       "role": "Extracted job title",
-      "hr_email": "Extracted HR email (or empty string)",
-      "email_draft": "The personalized email text"
+      "hr_email": "Extracted HR email",
+      "email_draft": "The short professional email text"
     }}
     """
 
@@ -185,9 +189,81 @@ def generate_email(request: JobApplicationRequest):
     return {"status": "error", "message": "Failed after multiple retries."}
     
 
+
 # --- ENDPOINT 3: Send the Email via Gmail API ---
 @app.post("/api/send-email")
 def send_email(request: SendEmailRequest):
+    print(f"--> Preparing to send emails on behalf of {request.user_email}...")
+    
+    if not request.google_token:
+        return {"status": "error", "message": "Google Access Token is missing!"}
+
+    try:
+       
+        # Create a professional, centered container for the email
+        html_body = f"""
+        <html>
+          <body style="margin: 0; padding: 0; background-color: #f6f9fc; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+            <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; margin: 20px auto; background-color: #ffffff; border: 1px solid #e0e0e0; border-radius: 4px;">
+              <tr>
+                <td style="padding: 30px; line-height: 1.5; color: #2d3748; font-size: 15px;">
+                  {request.body.replace(chr(10), '<br>')}
+                </td>
+              </tr>
+            </table>
+          </body>
+        </html>
+        """
+
+        # Download the resume to attach
+        pdf_attachment = None
+        if request.resume_url:
+            response = requests.get(request.resume_url)
+            response.raise_for_status() 
+            pdf_attachment = MIMEApplication(response.content, _subtype="pdf")
+            pdf_attachment.add_header('Content-Disposition', 'attachment', filename='Resume.pdf')
+
+        # Send using Google's Gmail API
+        for email_address in request.recipient_emails:
+            msg = MIMEMultipart()
+            msg['From'] = request.user_email
+            msg['To'] = email_address
+            msg['Subject'] = request.subject
+            
+            # Use the 'html_body' we created above
+            msg.attach(MIMEText(html_body, 'html'))
+            
+            if pdf_attachment:
+                msg.attach(pdf_attachment)
+
+            # Gmail API requires a base64url encoded string
+            raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
+
+            headers = {
+                "Authorization": f"Bearer {request.google_token}",
+                "Content-Type": "application/json"
+            }
+            
+            # Make the HTTP request to the standard Gmail API endpoint
+            gmail_response = requests.post(
+                "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+                headers=headers,
+                json={"raw": raw_message}
+            )
+            
+            gmail_response.raise_for_status() 
+
+        return {"status": "success", "message": f"Emails sent successfully to {len(request.recipient_emails)} recipient(s)!"}
+
+    except requests.exceptions.HTTPError as http_err:
+        error_details = http_err.response.text
+        print(f"Gmail API Error: {error_details}")
+        return {"status": "error", "message": f"Gmail API Error: {error_details}"}
+        
+    except Exception as e:
+        print(f"Failed to send email: {e}")
+        return {"status": "error", "message": str(e)}
+
     print(f"--> Preparing to send emails on behalf of {request.user_email}...")
     
     if not request.google_token:
@@ -208,7 +284,7 @@ def send_email(request: SendEmailRequest):
             msg['From'] = request.user_email
             msg['To'] = email_address
             msg['Subject'] = request.subject
-            msg.attach(MIMEText(request.body, 'plain'))
+            msg.attach(MIMEText(html_content, 'html'))
             
             if pdf_attachment:
                 msg.attach(pdf_attachment)
