@@ -2,6 +2,7 @@ export type AppStatus = "Applied" | "Interviewing" | "Rejected";
 
 export interface Application {
   id: number;
+  user_id?: string;             // Added to match Supabase
   company: string;
   role: string;
   status: AppStatus;
@@ -9,7 +10,8 @@ export interface Application {
   followUp: boolean;
   logo: string;
   logoColor: string;
-  recruiterEmail: string[];
+  companyEmails?: string[];     // Renamed from recruiterEmail to match Dashboard.tsx
+  email_body?: string;          // Added to match Supabase
 }
 
 export interface AnalysisResult {
@@ -24,12 +26,12 @@ export interface AnalysisResult {
 }
 
 export const MOCK_APPLICATIONS: Application[] = [
-  { id: 1, company: "Stripe", role: "Frontend Engineer", status: "Interviewing", date: "Apr 1, 2026", followUp: false, logo: "S", logoColor: "#635bff", recruiterEmail: "recruiting@stripe.com" },
-  { id: 2, company: "Linear", role: "Full-Stack Developer", status: "Applied", date: "Apr 3, 2026", followUp: true, logo: "L", logoColor: "#5e6ad2", recruiterEmail: "jobs@linear.app" },
-  { id: 3, company: "Vercel", role: "SWE, Frontend", status: "Applied", date: "Apr 5, 2026", followUp: false, logo: "V", logoColor: "#171717", recruiterEmail: "recruiting@vercel.com" },
-  { id: 4, company: "Cohere", role: "ML Engineer", status: "Interviewing", date: "Mar 28, 2026", followUp: true, logo: "C", logoColor: "#39c5cf", recruiterEmail: "careers@cohere.ai" },
-  { id: 5, company: "PlanetScale", role: "Backend Engineer", status: "Rejected", date: "Mar 20, 2026", followUp: false, logo: "P", logoColor: "#1ec3b0", recruiterEmail: "hr@planetscale.com" },
-  { id: 6, company: "Anthropic", role: "SWE Intern", status: "Applied", date: "Apr 6, 2026", followUp: false, logo: "A", logoColor: "#cc785c", recruiterEmail: "hiring@anthropic.com" },
+  { id: 1, company: "Stripe", role: "Frontend Engineer", status: "Interviewing", date: "Apr 1, 2026", followUp: false, logo: "S", logoColor: "#635bff", companyEmails: ["recruiting@stripe.com"] },
+  { id: 2, company: "Linear", role: "Full-Stack Developer", status: "Applied", date: "Apr 3, 2026", followUp: true, logo: "L", logoColor: "#5e6ad2", companyEmails: ["jobs@linear.app"] },
+  { id: 3, company: "Vercel", role: "SWE, Frontend", status: "Applied", date: "Apr 5, 2026", followUp: false, logo: "V", logoColor: "#171717", companyEmails: ["recruiting@vercel.com"] },
+  { id: 4, company: "Cohere", role: "ML Engineer", status: "Interviewing", date: "Mar 28, 2026", followUp: true, logo: "C", logoColor: "#39c5cf", companyEmails: ["careers@cohere.ai"] },
+  { id: 5, company: "PlanetScale", role: "Backend Engineer", status: "Rejected", date: "Mar 20, 2026", followUp: false, logo: "P", logoColor: "#1ec3b0", companyEmails: ["hr@planetscale.com"] },
+  { id: 6, company: "Anthropic", role: "SWE Intern", status: "Applied", date: "Apr 6, 2026", followUp: false, logo: "A", logoColor: "#cc785c", companyEmails: ["hiring@anthropic.com"] },
 ];
 
 export const MOCK_ANALYSIS: AnalysisResult = {

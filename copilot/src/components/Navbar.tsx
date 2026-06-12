@@ -1,6 +1,8 @@
 "use client";
 
-import { Sparkles, Zap, LayoutGrid, Settings } from "lucide-react";
+import { useState } from "react";
+import { Sparkles, Zap, LayoutGrid, Settings, LogOut } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
 
 type Page = "analyzer" | "dashboard";
 
@@ -8,6 +10,7 @@ interface NavbarProps {
   currentPage: Page;
   onNavigate: (page: Page) => void;
   onOpenSettings: () => void;
+  userName?: string; // <--- New prop to accept the user's name
 }
 
 const NAV_ITEMS: { key: Page; label: string; Icon: React.ElementType }[] = [
@@ -15,7 +18,28 @@ const NAV_ITEMS: { key: Page; label: string; Icon: React.ElementType }[] = [
   { key: "dashboard", label: "Dashboard",     Icon: LayoutGrid },
 ];
 
-export default function Navbar({ currentPage, onNavigate, onOpenSettings }: NavbarProps) {
+export default function Navbar({ currentPage, onNavigate, onOpenSettings, userName }: NavbarProps) {
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  // Helper to extract initials (e.g., "Carol Pinto" -> "CP")
+  const getInitials = (name?: string) => {
+    if (!name) return "U"; // Default to "U" for User if no name is loaded yet
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .substring(0, 2)
+      .toUpperCase();
+  };
+
+  // Securely log out and clear browser memory
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    localStorage.removeItem("google_auth_token");
+    localStorage.removeItem("google_refresh_token");
+    window.location.reload(); // Forces the app to clear state and return to login
+  }
+
   return (
     <nav className="bg-white border-b border-slate-200 sticky top-0 z-40 flex items-center px-5 gap-1">
       {/* Brand */}
@@ -49,8 +73,30 @@ export default function Navbar({ currentPage, onNavigate, onOpenSettings }: Navb
           <Settings size={13} />
           Settings
         </button>
-        <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-xs font-medium text-indigo-600">
-          AK
+        
+        {/* Interactive Avatar & Dropdown */}
+        <div className="relative">
+          <button 
+            onClick={() => setShowDropdown(!showDropdown)} 
+            className="w-8 h-8 rounded-full bg-indigo-50 hover:bg-indigo-100 flex items-center justify-center text-xs font-medium text-indigo-600 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          >
+            {getInitials(userName)}
+          </button>
+
+          {showDropdown && (
+            <div className="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-lg py-1.5 z-50">
+              <div className="px-4 py-2 border-b border-slate-100 mb-1">
+                <p className="text-xs text-slate-500 font-medium truncate">Signed in as</p>
+                <p className="text-sm font-semibold text-slate-900 truncate">{userName || "User"}</p>
+              </div>
+              <button 
+                onClick={handleLogout} 
+                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors text-left"
+              >
+                <LogOut size={15} /> Logout
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </nav>

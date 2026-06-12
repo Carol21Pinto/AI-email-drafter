@@ -49,7 +49,8 @@ class SendEmailRequest(BaseModel):
     body: str
     resume_url: str | None = None
     user_email: str         
-    google_token: str       
+    google_token: str     
+    refresh_token: str | None = None  
 
 
 # --- ENDPOINT 1: Parse the PDF Resume ---
@@ -62,11 +63,25 @@ def parse_resume(file: UploadFile = File(...)):
         
         extracted_text = ""
         for page in pdf_reader.pages:
+            # 1. Extract the visible text
             extracted_text += page.extract_text() + "\n"
+            
+            # 2. Extract the hidden hyperlinks
+            if "/Annots" in page:
+                for annot in page["/Annots"]:
+                    try:
+                        annot_obj = annot.get_object()
+                        if "/A" in annot_obj and "/URI" in annot_obj["/A"]:
+                            uri = annot_obj["/A"]["/URI"]
+                            # Inject the hidden URL directly into the text for the AI to read
+                            extracted_text += f"\n[Hidden Profile Link Found: {uri}]"
+                    except Exception:
+                        pass # Silently skip any broken annotations
             
         if not extracted_text.strip():
             return {"status": "error", "message": "Could not extract any text from the PDF. It might be an image-based PDF."}
 
+        # 3. Ask the AI to parse the text AND the new hidden links
         system_prompt = """
         You are an expert HR assistant. Extract the following information from the provided resume text.
         Format your response EXACTLY as a JSON object with these keys:
@@ -99,7 +114,7 @@ def parse_resume(file: UploadFile = File(...)):
     except Exception as e:
         print(f"Failed to parse resume: {e}")
         return {"status": "error", "message": str(e)}
-
+    
 
 # --- ENDPOINT 2: Generate the Email Draft ---
 @app.post("/api/generate-email")
@@ -110,25 +125,47 @@ def generate_email(request: JobApplicationRequest):
         return {"status": "error", "message": "GROQ_API_KEY is missing from your backend .env file!"}
 
     system_prompt = f"""
-    You are an expert career assistant. You must write an application email matching the applicant's resume to the Job Description.
-    
-    Applicant Name: {request.applicant_name}
-    Applicant Resume Context: {request.resume_text if request.resume_text else "Full-stack developer and AI engineer."}
-    
-    IMPORTANT DRAFTING INSTRUCTIONS:
-    1. The email MUST highlight specific projects, skills, or metrics from the 'Applicant Resume Context' that match the job.
-    2. DO NOT include a "Subject:" line inside the email_draft text.
-    3. DO NOT use placeholders like [Your Name] or [Company Name]. 
-    4. Sign off using EXACTLY the Applicant Name.
+        You are an expert career assistant. Create a professional job application email matching the applicant's resume to the provided Job Description.
 
-    You MUST output ONLY valid JSON using this exact schema:
-    {{
-      "company": "Extracted company name",
-      "role": "Extracted job title",
-      "hr_email": "Extracted HR email (or empty string)",
-      "email_draft": "The personalized email text"
-    }}
-    """
+        Applicant Name: {request.applicant_name}
+        Applicant Resume Context: {request.resume_text if request.resume_text else "Full-stack developer and AI engineer."}
+
+        Follow these rules strictly when drafting the email:
+        1. Generate a clear and professional subject line tailored to the job description.
+        2. Keep the email body concise, between 100–150 words.
+        3. Start with a professional greeting (e.g., Dear Hiring Manager, Dear [Company] Team).
+        4. Mention the exact job title the applicant is applying for.
+        5. Analyze the requirements and customize the email to match the job description. Emphasize the most relevant skills, technologies, and projects from the 'Applicant Resume Context'.
+        6. Include brief, impactful information about the extracted projects to prove capability.
+        7. Mention that the resume is attached.
+        8. Express enthusiasm for the opportunity.
+        9. End with a polite thank-you and call to action.
+        10. Use professional, error-free English.
+        11. Do not use generic phrases like "I need a job" or "Please hire me."
+        12. Make the email ATS-friendly and recruiter-friendly.
+        13. Keep the tone confident but not arrogant.
+        14. DO NOT use placeholders like [Email] or [Phone]. Extract the real data from the resume context. If a detail is missing, simply omit that line.
+        15. FORMATTING: Do NOT use hard line breaks to wrap sentences. Each paragraph must be a single continuous line of text. Use double line breaks (\\n\\n) ONLY to separate paragraphs.
+
+        SIGNATURE FORMAT:
+        End the email_draft exactly like this (extracting the details from the resume context):
+        Regards,
+        {request.applicant_name}
+        Email: [Extracted email]
+        Phone: [Extracted phone number]
+        GitHub: [Extracted GitHub profile]
+        LinkedIn: [Extracted LinkedIn profile]
+
+        OUTPUT FORMAT:
+        You MUST output ONLY valid JSON using this exact schema:
+        {{
+        "company": "Extracted company name",
+        "role": "Extracted job title",
+        "hr_email": "Extracted HR email (or empty string)",
+        "email_subject": "The professional subject line",
+        "email_draft": "The complete, personalized email text including the signature"
+        }}
+        """
 
     user_content = []
     if request.job_description:
@@ -168,6 +205,7 @@ def generate_email(request: JobApplicationRequest):
                 "company": ai_data.get("company", "Unknown"),
                 "role": ai_data.get("role", "Unknown"),
                 "hr_email": ai_data.get("hr_email", ""),
+                "generated_subject": ai_data.get("email_subject", f"Application for {ai_data.get('role', 'Position')}"),
                 "generated_email": ai_data.get("email_draft", ""),
                 "match_score": 85
             }
@@ -208,8 +246,9 @@ def send_email(request: SendEmailRequest):
             msg['From'] = request.user_email
             msg['To'] = email_address
             msg['Subject'] = request.subject
-            msg.attach(MIMEText(request.body, 'plain'))
-            
+            html_body = request.body.replace('\n', '<br>')
+            msg.attach(MIMEText(html_body, 'html'))  
+               # <--- Use the new variable and 'html'
             if pdf_attachment:
                 msg.attach(pdf_attachment)
 
@@ -234,7 +273,39 @@ def send_email(request: SendEmailRequest):
         return {"status": "success", "message": f"Emails sent successfully to {len(request.recipient_emails)} recipient(s)!"}
 
     except requests.exceptions.HTTPError as http_err:
-        # Catch specific HTTP errors from the Gmail API to pinpoint permission/token issues
+        # If the token is expired (401) and we have a refresh token, try to swap it
+        if http_err.response.status_code == 401 and request.refresh_token:
+            print("Access token expired. Swapping refresh token for a new one...")
+            
+            token_url = "https://oauth2.googleapis.com/token"
+            token_data = {
+                "client_id": os.environ.get("GOOGLE_CLIENT_ID"),
+                "client_secret": os.environ.get("GOOGLE_CLIENT_SECRET"),
+                "refresh_token": request.refresh_token,
+                "grant_type": "refresh_token"
+            }
+            
+            refresh_res = requests.post(token_url, data=token_data)
+            
+            if refresh_res.status_code == 200:
+                new_tokens = refresh_res.json()
+                new_access_token = new_tokens["access_token"]
+                print("Successfully refreshed token! Retrying email send...")
+                
+                # Update the header with the fresh token and retry the send
+                headers["Authorization"] = f"Bearer {new_access_token}"
+                retry_response = requests.post(
+                    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+                    headers=headers,
+                    json={"raw": raw_message}
+                )
+                retry_response.raise_for_status() 
+                return {"status": "success", "message": f"Emails sent successfully (via refreshed token) to {len(request.recipient_emails)} recipient(s)!"}
+            else:
+                print(f"Failed to refresh token: {refresh_res.text}")
+                return {"status": "error", "message": "Session fully expired. Please log out and log back in."}
+
+        # Catch any other specific HTTP errors
         error_details = http_err.response.text
         print(f"Gmail API Error: {error_details}")
         return {"status": "error", "message": f"Gmail API Error: {error_details}"}

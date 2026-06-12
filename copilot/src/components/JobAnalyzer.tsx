@@ -35,7 +35,9 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
   const [jdText, setJdText] = useState("");
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [editingEmail, setEditingEmail] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [emailContent, setEmailContent] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
   
   const [emailInput, setEmailInput] = useState("");
   const [targetEmails, setTargetEmails] = useState<string[]>([]);
@@ -50,13 +52,16 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
   
   // --- NEW: Google Token State ---
   const [googleToken, setGoogleToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null); // <--- ADD THIS
   const [userEmail, setUserEmail] = useState<string>("");
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadUserProfile() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         setUserEmail(session.user.email || "");
+        setUserId(session.user.id);
 
         // Safely cache the Google token so it survives page reloads
         if (session.provider_token) {
@@ -65,6 +70,14 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
         } else {
           const cachedToken = localStorage.getItem('google_auth_token');
           if (cachedToken) setGoogleToken(cachedToken);
+        }
+
+        if (session.provider_refresh_token) {
+          setRefreshToken(session.provider_refresh_token);
+          localStorage.setItem('google_refresh_token', session.provider_refresh_token);
+        } else {
+          const cachedRefresh = localStorage.getItem('google_refresh_token');
+          if (cachedRefresh) setRefreshToken(cachedRefresh);
         }
 
         const { data, error } = await supabase
@@ -141,6 +154,7 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
       if (data.status === "error") throw new Error(data.message);
 
       setEmailContent(data.generated_email);
+      setEmailSubject(data.generated_subject);
       
       if (data.hr_email && data.hr_email.trim() !== "") {
           addEmail(data.hr_email);
@@ -185,18 +199,19 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
       alert("Missing Google authorization. Please log out and log back in to grant email permissions.");
       return;
     }
-
+    setIsSending(true);
     try {
       const response = await fetch("http://localhost:8000/api/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           recipient_emails: targetEmails,
-          subject: `Application for ${extractedData.role} - ${applicantName}`,
+          subject: emailSubject,
           body: emailContent,
           resume_url: resumeUrl || null,
           user_email: userEmail,       // NEW: Passing user email
-          google_token: googleToken    // NEW: Passing user token
+          google_token: googleToken ,
+          refresh_token: refreshToken   // NEW: Passing user token
         }),
       });
 
@@ -211,6 +226,7 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
       const randomColor = ["#635bff", "#10b981", "#ef4444", "#f59e0b", "#0ea5e9"][Math.floor(Math.random() * 5)];
 
       const newApplication = {
+        user_id: userId,               // <--- Links the application to the logged-in user
         company: extractedData.company,
         role: extractedData.role,
         status: "Applied",
@@ -218,13 +234,16 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
         followUp: false,
         logo: extractedData.company.charAt(0).toUpperCase(),
         logoColor: randomColor,
-        companyEmails: targetEmails 
+        companyEmails: targetEmails,
+        // email_body: emailContent       // <--- Saves the actual text of the email
       };
 
       const { error: dbError } = await supabase.from('applications').insert([newApplication]);
 
       if (dbError) {
-        console.error("Supabase Error Details:", dbError);
+        // Force the error to stringify so we can read the hidden details
+        console.error("Supabase Error Details:", JSON.stringify(dbError, null, 2));
+        console.error("Supabase Error Message:", dbError.message || dbError.details || dbError.hint);
         throw new Error("Email sent, but database rejected the save.");
       }
 
@@ -243,6 +262,8 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
     } catch (error) {
       console.error("Failed:", error);
       alert(error instanceof Error ? error.message : "An error occurred.");
+    }finally{
+      setIsSending(false);
     }
   }
 
@@ -338,14 +359,50 @@ export default function JobAnalyzer({ onApplicationSent, resumeUrl }: JobAnalyze
               <div className="flex items-center gap-2 flex-wrap">
                 <button onClick={handleRegenerate} className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"><RefreshCw size={11} /> Regenerate</button>
                 <button onClick={() => setEditingEmail((v) => !v)} className="flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-800 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"><Edit3 size={11} /> {editingEmail ? "Preview" : "Edit manually"}</button>
-                <button onClick={handleSend} className="flex items-center gap-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded-lg transition-colors shadow-sm"><CheckCheck size={11} /> Approve &amp; Send</button>
+                <button 
+                  onClick={handleSend} 
+                  disabled={isSending}
+                  className="flex items-center gap-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white px-4 py-1.5 rounded-lg transition-colors shadow-sm"
+                >
+                  {isSending ? (
+                    <><Loader2 size={11} className="animate-spin" /> Sending...</>
+                  ) : (
+                    <><CheckCheck size={11} /> Approve & Send</>
+                  )}
+                </button>
               </div>
             </div>
 
             {editingEmail ? (
-              <textarea value={emailContent} onChange={(e) => setEmailContent(e.target.value)} className="w-full h-64 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">Subject</label>
+                  <input 
+                    type="text"
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2 text-xs font-medium leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">Body</label>
+                  <textarea 
+                    value={emailContent} 
+                    onChange={(e) => setEmailContent(e.target.value)} 
+                    className="w-full h-64 border border-slate-200 rounded-xl px-4 py-3 text-xs font-mono leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400" 
+                  />
+                </div>
+              </div>
             ) : (
-              <pre className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-4 text-xs leading-relaxed whitespace-pre-wrap font-sans text-slate-700">{emailContent}</pre>
+              <div className="space-y-3">
+                <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-2.5 text-xs text-slate-700 font-medium">
+                  <span className="text-slate-400 uppercase tracking-wider font-semibold text-[10px] mr-2">Subject:</span>
+                  {emailSubject}
+                </div>
+                <pre className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-4 text-xs leading-relaxed whitespace-pre-wrap font-sans text-slate-700">
+                  {emailContent}
+                </pre>
+              </div>
             )}
           </div>
         </div>

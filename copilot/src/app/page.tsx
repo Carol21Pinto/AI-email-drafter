@@ -18,6 +18,7 @@ interface ToastState {
 }
 
 export default function HomePage() {
+  const [userName, setUserName] = useState("User");
   const [onboarded, setOnboarded] = useState<boolean | null>(null);
   const [page, setPage] = useState<Page>("analyzer");
   const [applications, setApplications] = useState<Application[]>([]);
@@ -52,10 +53,17 @@ export default function HomePage() {
     checkUserSession();
   }, []);
 
-  async function fetchApplications() {
+async function fetchApplications() {
+    // 1. Grab the current user's session
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.user) return;
+
+    // 2. Fetch only their specific applications
     const { data, error } = await supabase
       .from("applications")
       .select("*")
+      .eq("user_id", session.user.id) // <--- This is the magic key!
       .order("id", { ascending: false }); 
 
     if (error) {
@@ -101,11 +109,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Navbar
-        currentPage={page}
-        onNavigate={setPage}
-        onOpenSettings={() => setOnboarded(false)}
-      />
+      <Navbar currentPage={page} onNavigate={setPage} onOpenSettings={() => setOnboarded(false)} userName={userName} />
 
       <main>
         {page === "analyzer" && (

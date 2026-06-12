@@ -165,10 +165,12 @@ async function connectGmail() {
       if (error) throw error;
 
       onComplete(data.resumeFile);
-    } catch (error) {
-      console.error("Database save error:", error);
-      alert(error instanceof Error ? error.message : "Failed to save profile to database.");
-    } finally {
+    } catch (error: any) {
+        // Force the error to stringify so we can read the hidden details
+        console.error("Database save error details:", JSON.stringify(error, null, 2));
+        console.error("Database save error message:", error?.message || error?.details || error?.hint);
+        alert(error instanceof Error ? error.message : "Failed to save profile.");
+      } finally {
       setIsSaving(false);
     }
   }
