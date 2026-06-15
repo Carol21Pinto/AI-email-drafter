@@ -108,7 +108,7 @@ async function connectGmail() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch("http://localhost:8000/api/parse-resume", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/parse-resume`, {
         method: "POST",
         body: formData,
       });
@@ -199,7 +199,7 @@ async function connectGmail() {
             return (
               <div key={s.label} className="flex items-center gap-0">
                 {i > 0 && (
-                  <div className={`w-8 h-px mx-1 ${step > i ? "bg-indigo-500" : "bg-slate-200"}`} />
+                  <div className={"w-8 h-px mx-1 " + (step > i ? "bg-indigo-500" : "bg-slate-200")} />
                 )}
                 <div className="flex items-center gap-2">
                   <div

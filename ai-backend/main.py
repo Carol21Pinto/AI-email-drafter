@@ -25,6 +25,10 @@ client = OpenAI(
 
 app = FastAPI()
 
+@app.get("/")
+def health_check():
+    return {"status": "ok", "message": "Backend is running"}
+
 # Allow requests from your Next.js frontend
 app.add_middleware(
     CORSMiddleware,
