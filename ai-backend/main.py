@@ -236,7 +236,7 @@ def send_email(request: SendEmailRequest):
         return {"status": "error", "message": "Google Access Token is missing!"}
 
     try:
-        # Download the resume to attach
+        # 1. Download the resume to attach (Only doing this ONCE!)
         pdf_attachment = None
         if request.resume_url:
             response = requests.get(request.resume_url)
@@ -244,37 +244,39 @@ def send_email(request: SendEmailRequest):
             pdf_attachment = MIMEApplication(response.content, _subtype="pdf")
             pdf_attachment.add_header('Content-Disposition', 'attachment', filename='Resume.pdf')
 
-        # Send using Google's Gmail API
-        for email_address in request.recipient_emails:
-            msg = MIMEMultipart()
-            msg['From'] = request.user_email
-            msg['To'] = email_address
-            msg['Subject'] = request.subject
-            html_body = request.body.replace('\n', '<br>')
-            msg.attach(MIMEText(html_body, 'html'))  
-               # <--- Use the new variable and 'html'
-            if pdf_attachment:
-                msg.attach(pdf_attachment)
+        # 2. Build the email
+        # --- THE FIX: We join all emails with a comma and send ONE email! ---
+        msg = MIMEMultipart()
+        msg['From'] = request.user_email
+        msg['To'] = ", ".join(request.recipient_emails)  # <--- This joins the array: "email1, email2"
+        msg['Subject'] = request.subject
+        
+        html_body = request.body.replace('\n', '<br>')
+        msg.attach(MIMEText(html_body, 'html'))  
+        
+        if pdf_attachment:
+            msg.attach(pdf_attachment)
 
-            # Gmail API requires a base64url encoded string
-            raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
+        # 3. Gmail API requires a base64url encoded string
+        raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
 
-            headers = {
-                "Authorization": f"Bearer {request.google_token}",
-                "Content-Type": "application/json"
-            }
-            
-            # Make the HTTP request to the standard Gmail API endpoint
-            gmail_response = requests.post(
-                "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
-                headers=headers,
-                json={"raw": raw_message}
-            )
-            
-            # This will trigger the except block below if Google rejects the token or scopes
-            gmail_response.raise_for_status() 
+        headers = {
+            "Authorization": f"Bearer {request.google_token}",
+            "Content-Type": "application/json"
+        }
+        
+        # 4. Make the HTTP request to the standard Gmail API endpoint
+        gmail_response = requests.post(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            headers=headers,
+            json={"raw": raw_message}
+        )
+        
+        # This will trigger the except block below if Google rejects the token or scopes
+        gmail_response.raise_for_status() 
 
-        return {"status": "success", "message": f"Emails sent successfully to {len(request.recipient_emails)} recipient(s)!"}
+        # (Only ONE return statement needed here)
+        return {"status": "success", "message": f"Email sent successfully to {len(request.recipient_emails)} recipient(s)!"}
 
     except requests.exceptions.HTTPError as http_err:
         # If the token is expired (401) and we have a refresh token, try to swap it

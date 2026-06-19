@@ -130,6 +130,31 @@
       reader.readAsDataURL(file);
     }
 
+    function handlePaste(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+      const items = event.clipboardData?.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        // Check if the pasted item is an image
+        if (items[i].type.startsWith("image/")) {
+          const file = items[i].getAsFile();
+          if (file) {
+            setPosterFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64String = (reader.result as string).split(',')[1];
+              setPosterBase64(base64String);
+            };
+            reader.readAsDataURL(file);
+            
+            // Prevent the browser from trying to paste the image as weird text
+            event.preventDefault(); 
+            return;
+          }
+        }
+      }
+    }
+
     async function handleAnalyze() {
       if (!jdText.trim() && !posterBase64) return;
       setState("loading");
@@ -320,8 +345,9 @@
           <textarea
             value={jdText}
             onChange={(e) => setJdText(e.target.value)}
+            onPaste={handlePaste} // <--- ADD THIS LINE
             className={`w-full border border-slate-200 rounded-xl px-4 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all ${isAnalyzed ? "h-28" : "h-32"}`}
-            placeholder="...or paste the full text job description here."
+            placeholder="...or paste the full text job description here. You can also Ctrl+V an image!"
           />
 
           <div className="flex justify-end mt-3">
