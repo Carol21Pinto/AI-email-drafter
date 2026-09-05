@@ -24,7 +24,12 @@ client = OpenAI(
 )
 
 # Active Groq models (2026) with automatic fallback if a model is deprecated
-TEXT_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+TEXT_MODELS = [
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "deepseek-r1-distill",
+    "mixtral-8x22b"
+]
 VISION_MODELS = ["qwen/qwen3.6-27b", "llama-3.2-11b-vision-preview"]
 
 def call_groq(models: list[str], messages: list[dict], temperature: float = 0.5):
