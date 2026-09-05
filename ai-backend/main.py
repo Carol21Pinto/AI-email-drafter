@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import time
 import requests
 import base64
@@ -7,10 +8,11 @@ import io
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+from typing import Any
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from openai import OpenAI  
+from openai import OpenAI
 from dotenv import load_dotenv
 from pypdf import PdfReader
 
@@ -23,28 +25,51 @@ client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
 )
 
-# Active Groq models (2026) with automatic fallback if a model is deprecated
+# Active Groq models with automatic fallback if a model is deprecated
 TEXT_MODELS = [
-    "openai/gpt-oss-120b",
-    "openai/gpt-oss-20b",
-    "deepseek-r1-distill",
-    "mixtral-8x22b"
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "gemma2-9b-it",
+    "mixtral-8x7b-32768",
 ]
-VISION_MODELS = ["qwen/qwen3.6-27b", "llama-3.2-11b-vision-preview"]
+VISION_MODELS = ["llama-3.2-90b-vision-preview", "llama-3.2-11b-vision-preview"]
+
+# Models that support the response_format parameter
+_JSON_MODE_MODELS = {
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "gemma2-9b-it",
+    "mixtral-8x7b-32768",
+}
+
+
+def _extract_json(text: str) -> dict[str, Any]:
+    """Extract JSON from AI output that may contain <think> tags or markdown fences."""
+    # Strip <think>...</think> blocks (DeepSeek R1 style)
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+    # Strip markdown ```json ... ``` fences
+    fence_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
+    if fence_match:
+        text = fence_match.group(1).strip()
+    return json.loads(text)
 
 def call_groq(models: list[str], messages: list[dict], temperature: float = 0.5):
     """Tries candidate models in order. If a model returns 404/not_found, seamlessly falls back to the next."""
-    last_error = None
+    last_error: Exception | None = None
     for model in models:
+        # Only pass response_format for models that support it
+        kwargs: dict = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "timeout": 30.0,
+        }
+        if model in _JSON_MODE_MODELS:
+            kwargs["response_format"] = {"type": "json_object"}
+
         for attempt in range(2):
             try:
-                return client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    response_format={"type": "json_object"},
-                    timeout=30.0
-                )
+                return client.chat.completions.create(**kwargs)
             except Exception as e:
                 last_error = e
                 err_str = str(e)
@@ -55,7 +80,9 @@ def call_groq(models: list[str], messages: list[dict], temperature: float = 0.5)
                     time.sleep(2)
                 else:
                     break
-    raise last_error
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("No models provided to call_groq()")
 
 app = FastAPI()
 
@@ -66,7 +93,7 @@ def health_check():
 # Allow requests from your Next.js frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000","https://ai-email-drafter-dmag.vercel.app/"],
+    allow_origins=["http://localhost:3000", "https://ai-email-drafter-dmag.vercel.app"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -102,11 +129,12 @@ def parse_resume(file: UploadFile = File(...)):
         extracted_text = ""
         for page in pdf_reader.pages:
             # 1. Extract the visible text
-            extracted_text += page.extract_text() + "\n"
+            extracted_text += (page.extract_text() or "") + "\n"
             
             # 2. Extract the hidden hyperlinks
             if "/Annots" in page:
-                for annot in page["/Annots"]:
+                annots = page["/Annots"]
+                for annot in (annots if isinstance(annots, list) else []):
                     try:
                         annot_obj = annot.get_object()
                         if "/A" in annot_obj and "/URI" in annot_obj["/A"]:
@@ -140,7 +168,7 @@ def parse_resume(file: UploadFile = File(...)):
             temperature=0.3
         )
 
-        profile_data = json.loads(response.choices[0].message.content)
+        profile_data = _extract_json(response.choices[0].message.content)
 
         return {
             "status": "success",
@@ -240,7 +268,7 @@ def generate_email(request: JobApplicationRequest):
         )
         
         raw_content = response.choices[0].message.content
-        ai_data = json.loads(raw_content)
+        ai_data = _extract_json(raw_content)
 
         # Safely parse match_score (0-100)
         match_score = ai_data.get("match_score", 80)
@@ -283,6 +311,12 @@ def send_email(request: SendEmailRequest):
     if not request.google_token:
         return {"status": "error", "message": "Google Access Token is missing!"}
 
+    headers: dict[str, str] = {
+        "Authorization": f"Bearer {request.google_token}",
+        "Content-Type": "application/json",
+    }
+    raw_message = ""
+
     try:
         # 1. Download the resume to attach (Only doing this ONCE!)
         pdf_attachment = None
@@ -293,10 +327,9 @@ def send_email(request: SendEmailRequest):
             pdf_attachment.add_header('Content-Disposition', 'attachment', filename='Resume.pdf')
 
         # 2. Build the email
-        # --- THE FIX: We join all emails with a comma and send ONE email! ---
         msg = MIMEMultipart()
         msg['From'] = request.user_email
-        msg['To'] = ", ".join(request.recipient_emails)  # <--- This joins the array: "email1, email2"
+        msg['To'] = ", ".join(request.recipient_emails)
         msg['Subject'] = request.subject
         
         html_body = request.body.replace('\n', '<br>')
@@ -307,11 +340,6 @@ def send_email(request: SendEmailRequest):
 
         # 3. Gmail API requires a base64url encoded string
         raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode('utf-8')
-
-        headers = {
-            "Authorization": f"Bearer {request.google_token}",
-            "Content-Type": "application/json"
-        }
         
         # 4. Make the HTTP request to the standard Gmail API endpoint
         gmail_response = requests.post(
