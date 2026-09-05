@@ -26,20 +26,21 @@ client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
 )
 
-# Active Groq models with automatic fallback if a model is deprecated
+# Verified active Groq models for this account with dynamic discovery fallback
 TEXT_MODELS = [
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "qwen/qwen3.8-27b",
 ]
 VISION_MODELS = [
-    "llama-3.2-11b-vision-preview",
-    "llama-3.2-90b-vision-preview",
+    "qwen/qwen3.8-27b",
+    "qwen/qwen3.6-27b",
 ]
 
 # Models that support the response_format parameter
 _JSON_MODE_MODELS = {
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant",
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
 }
 
 
