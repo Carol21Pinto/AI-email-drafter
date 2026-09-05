@@ -323,8 +323,10 @@ def generate_email(request: JobApplicationRequest):
 
         MATCH EVALUATION:
         Evaluate how closely the applicant's resume context matches the job description requirements.
-        Calculate a realistic ATS match percentage (0 to 100) based on relevant skills, tech stack, and background.
+        Calculate a consistent, realistic ATS match percentage (0 to 100) based on relevant skills, tech stack, and background.
         Extract up to 6 key skills that match, and up to 4 relevant skills mentioned in the JD that are missing from the applicant's resume.
+        Provide a 1-sentence "strengths_summary" highlighting the applicant's top advantage for this specific role.
+        Provide a 1-sentence "weaknesses_summary" noting the most important missing requirement or gap to be aware of.
 
         OUTPUT FORMAT:
         You MUST output ONLY valid JSON using this exact schema:
@@ -335,6 +337,8 @@ def generate_email(request: JobApplicationRequest):
         "match_score": 85,
         "matched_skills": ["Skill 1", "Skill 2"],
         "missing_skills": ["Skill 3", "Skill 4"],
+        "strengths_summary": "1 concise sentence explaining the candidate's core strengths for this job",
+        "weaknesses_summary": "1 concise sentence explaining the candidate's key gaps or missing requirements",
         "email_subject": "The professional subject line",
         "email_draft": "The complete, personalized email text including the signature"
         }}
@@ -365,7 +369,7 @@ def generate_email(request: JobApplicationRequest):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
             ],
-            temperature=0.7
+            temperature=0.2
         )
         
         raw_content = response.choices[0].message.content or "{}"
@@ -396,7 +400,9 @@ def generate_email(request: JobApplicationRequest):
             "generated_email": ai_data.get("email_draft", ""),
             "match_score": match_score,
             "matched_skills": matched_skills,
-            "missing_skills": missing_skills
+            "missing_skills": missing_skills,
+            "strengths_summary": str(ai_data.get("strengths_summary", "")).strip(),
+            "weaknesses_summary": str(ai_data.get("weaknesses_summary", "")).strip()
         }
         
     except Exception as e:

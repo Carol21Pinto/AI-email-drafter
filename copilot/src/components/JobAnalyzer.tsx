@@ -192,6 +192,8 @@
           matchScore: typeof data.match_score === "number" ? data.match_score : 80, 
           matched: Array.isArray(data.matched_skills) && data.matched_skills.length > 0 ? data.matched_skills : ["Auto-extracted from JD"], 
           missing: Array.isArray(data.missing_skills) ? data.missing_skills : [],   
+          strength: data.strengths_summary || "",
+          weakness: data.weaknesses_summary || "",
           suggestedBullet: "Extracted profile details successfully mapped to job requirements.", 
           email: data.generated_email   
         });
@@ -401,6 +403,20 @@
                 </div>
 
                 <div className="flex-1 space-y-3 w-full">
+                  {analysis.strength && (
+                    <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl px-3.5 py-2.5 text-xs text-emerald-900 flex items-start gap-2 shadow-xs">
+                      <span className="font-semibold text-emerald-700 shrink-0">💪 Key Strength:</span>
+                      <span className="leading-relaxed">{analysis.strength}</span>
+                    </div>
+                  )}
+
+                  {analysis.weakness && (
+                    <div className="bg-amber-50/70 border border-amber-200/80 rounded-xl px-3.5 py-2.5 text-xs text-amber-900 flex items-start gap-2 shadow-xs">
+                      <span className="font-semibold text-amber-700 shrink-0">⚡ Recommended Area:</span>
+                      <span className="leading-relaxed">{analysis.weakness}</span>
+                    </div>
+                  )}
+
                   {analysis.matched.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1.5 flex items-center gap-1">

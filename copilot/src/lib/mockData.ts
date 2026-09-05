@@ -21,6 +21,8 @@ export interface AnalysisResult {
   matchScore: number;
   matched: string[];
   missing: string[];
+  strength?: string;
+  weakness?: string;
   suggestedBullet: string;
   email: string;
 }
