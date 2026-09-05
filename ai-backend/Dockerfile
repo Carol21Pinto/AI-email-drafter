@@ -1,19 +1,17 @@
-# Use a lightweight Python image
 FROM python:3.11-slim
 
-# Set the working directory inside the container
-WORKDIR /app
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+WORKDIR $HOME/app
 
-# Copy the rest of the application code
-COPY . .
+COPY --chown=user ./requirements.txt requirements.txt
+RUN pip install --no-cache-dir --upgrade -r requirements.txt
 
-# Expose port 7860 (required by Hugging Face Spaces)
+COPY --chown=user . $HOME/app
+
 EXPOSE 7860
 
-# Command to run the FastAPI app
-# Note: --host 0.0.0.0 is required for external access
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "7860"]
