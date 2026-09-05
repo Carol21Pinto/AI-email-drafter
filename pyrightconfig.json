@@ -5,5 +5,6 @@
   "extraPaths": [
     "C:\\Users\\USER\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages",
     "ai-backend"
-  ]
+  ],
+  "reportMissingTypeStubs": false
 }
