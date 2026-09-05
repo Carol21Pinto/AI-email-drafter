@@ -23,6 +23,35 @@ client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
 )
 
+# Active Groq models (2026) with automatic fallback if a model is deprecated
+TEXT_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+VISION_MODELS = ["qwen/qwen3.6-27b", "llama-3.2-11b-vision-preview"]
+
+def call_groq(models: list[str], messages: list[dict], temperature: float = 0.5):
+    """Tries candidate models in order. If a model returns 404/not_found, seamlessly falls back to the next."""
+    last_error = None
+    for model in models:
+        for attempt in range(2):
+            try:
+                return client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    response_format={"type": "json_object"},
+                    timeout=30.0
+                )
+            except Exception as e:
+                last_error = e
+                err_str = str(e)
+                if "404" in err_str or "model_not_found" in err_str:
+                    print(f"Model '{model}' not found on Groq, trying next fallback model...")
+                    break
+                elif "429" in err_str:
+                    time.sleep(2)
+                else:
+                    break
+    raise last_error
+
 app = FastAPI()
 
 @app.get("/")
@@ -97,14 +126,13 @@ def parse_resume(file: UploadFile = File(...)):
         }
         """
 
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+        response = call_groq(
+            models=TEXT_MODELS,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Resume Text:\n{extracted_text}"}
             ],
-            temperature=0.3,
-            response_format={"type": "json_object"}
+            temperature=0.3
         )
 
         profile_data = json.loads(response.choices[0].message.content)
@@ -185,10 +213,7 @@ def generate_email(request: JobApplicationRequest):
     else:
         user_content.append({"type": "text", "text": "Analyze the attached job poster."})
     
-    # Select free Groq model: vision model if image poster is provided, 70B versatile for text
     is_vision_request = bool(request.poster_base64 and request.poster_mime_type)
-    selected_model = "llama-3.2-11b-vision-preview" if is_vision_request else "llama-3.3-70b-versatile"
-
     if is_vision_request:
         user_content.append({
             "type": "image_url",
@@ -197,64 +222,52 @@ def generate_email(request: JobApplicationRequest):
             }
         })
 
-    max_retries = 3
-    retry_delay = 2 
+    candidate_models = VISION_MODELS if is_vision_request else TEXT_MODELS
 
-    for attempt in range(max_retries):
+    try:
+        response = call_groq(
+            models=candidate_models,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content}
+            ],
+            temperature=0.7
+        )
+        
+        raw_content = response.choices[0].message.content
+        ai_data = json.loads(raw_content)
+
+        # Safely parse match_score (0-100)
+        match_score = ai_data.get("match_score", 80)
         try:
-            response = client.chat.completions.create(
-                model=selected_model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content}
-                ],
-                temperature=0.7,
-                response_format={"type": "json_object"}, 
-                timeout=30.0 
-            )
-            
-            raw_content = response.choices[0].message.content
-            ai_data = json.loads(raw_content)
+            match_score = int(match_score)
+            match_score = max(0, min(100, match_score))
+        except (ValueError, TypeError):
+            match_score = 80
 
-            # Safely parse match_score (0-100)
-            match_score = ai_data.get("match_score", 80)
-            try:
-                match_score = int(match_score)
-                match_score = max(0, min(100, match_score))
-            except (ValueError, TypeError):
-                match_score = 80
+        matched_skills = ai_data.get("matched_skills", [])
+        if not isinstance(matched_skills, list):
+            matched_skills = []
 
-            matched_skills = ai_data.get("matched_skills", [])
-            if not isinstance(matched_skills, list):
-                matched_skills = []
-
-            missing_skills = ai_data.get("missing_skills", [])
-            if not isinstance(missing_skills, list):
-                missing_skills = []
-            
-            return {
-                "status": "success",
-                "company": ai_data.get("company", "Unknown"),
-                "role": ai_data.get("role", "Unknown"),
-                "hr_email": ai_data.get("hr_email", ""),
-                "generated_subject": ai_data.get("email_subject", f"Application for {ai_data.get('role', 'Position')}"),
-                "generated_email": ai_data.get("email_draft", ""),
-                "match_score": match_score,
-                "matched_skills": matched_skills,
-                "missing_skills": missing_skills
-            }
-            
-        except Exception as e:
-            error_msg = str(e)
-            if "429" in error_msg:
-                print(f"Rate limit hit. Waiting {retry_delay}s...")
-                time.sleep(retry_delay) 
-                retry_delay *= 2 
-            else:
-                if attempt == max_retries - 1:
-                    return {"status": "error", "message": f"Connection/Parsing error: {error_msg}."}
-    
-    return {"status": "error", "message": "Failed after multiple retries."}
+        missing_skills = ai_data.get("missing_skills", [])
+        if not isinstance(missing_skills, list):
+            missing_skills = []
+        
+        return {
+            "status": "success",
+            "company": ai_data.get("company", "Unknown"),
+            "role": ai_data.get("role", "Unknown"),
+            "hr_email": ai_data.get("hr_email", ""),
+            "generated_subject": ai_data.get("email_subject", f"Application for {ai_data.get('role', 'Position')}"),
+            "generated_email": ai_data.get("email_draft", ""),
+            "match_score": match_score,
+            "matched_skills": matched_skills,
+            "missing_skills": missing_skills
+        }
+        
+    except Exception as e:
+        error_msg = str(e)
+        return {"status": "error", "message": f"Connection/Parsing error: {error_msg}."}
     
 
 # --- ENDPOINT 3: Send the Email via Gmail API ---
