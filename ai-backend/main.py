@@ -160,12 +160,20 @@ def generate_email(request: JobApplicationRequest):
         GitHub: [Extracted GitHub profile]
         LinkedIn: [Extracted LinkedIn profile]
 
+        MATCH EVALUATION:
+        Evaluate how closely the applicant's resume context matches the job description requirements.
+        Calculate a realistic ATS match percentage (0 to 100) based on relevant skills, tech stack, and background.
+        Extract up to 6 key skills that match, and up to 4 relevant skills mentioned in the JD that are missing from the applicant's resume.
+
         OUTPUT FORMAT:
         You MUST output ONLY valid JSON using this exact schema:
         {{
         "company": "Extracted company name",
         "role": "Extracted job title",
         "hr_email": "Extracted HR email (or empty string)",
+        "match_score": 85,
+        "matched_skills": ["Skill 1", "Skill 2"],
+        "missing_skills": ["Skill 3", "Skill 4"],
         "email_subject": "The professional subject line",
         "email_draft": "The complete, personalized email text including the signature"
         }}
@@ -177,7 +185,11 @@ def generate_email(request: JobApplicationRequest):
     else:
         user_content.append({"type": "text", "text": "Analyze the attached job poster."})
     
-    if request.poster_base64 and request.poster_mime_type:
+    # Select free Groq model: vision model if image poster is provided, 70B versatile for text
+    is_vision_request = bool(request.poster_base64 and request.poster_mime_type)
+    selected_model = "llama-3.2-11b-vision-preview" if is_vision_request else "llama-3.3-70b-versatile"
+
+    if is_vision_request:
         user_content.append({
             "type": "image_url",
             "image_url": {
@@ -191,7 +203,7 @@ def generate_email(request: JobApplicationRequest):
     for attempt in range(max_retries):
         try:
             response = client.chat.completions.create(
-                model="meta-llama/llama-4-scout-17b-16e-instruct",
+                model=selected_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content}
@@ -203,6 +215,22 @@ def generate_email(request: JobApplicationRequest):
             
             raw_content = response.choices[0].message.content
             ai_data = json.loads(raw_content)
+
+            # Safely parse match_score (0-100)
+            match_score = ai_data.get("match_score", 80)
+            try:
+                match_score = int(match_score)
+                match_score = max(0, min(100, match_score))
+            except (ValueError, TypeError):
+                match_score = 80
+
+            matched_skills = ai_data.get("matched_skills", [])
+            if not isinstance(matched_skills, list):
+                matched_skills = []
+
+            missing_skills = ai_data.get("missing_skills", [])
+            if not isinstance(missing_skills, list):
+                missing_skills = []
             
             return {
                 "status": "success",
@@ -211,7 +239,9 @@ def generate_email(request: JobApplicationRequest):
                 "hr_email": ai_data.get("hr_email", ""),
                 "generated_subject": ai_data.get("email_subject", f"Application for {ai_data.get('role', 'Position')}"),
                 "generated_email": ai_data.get("email_draft", ""),
-                "match_score": 85
+                "match_score": match_score,
+                "matched_skills": matched_skills,
+                "missing_skills": missing_skills
             }
             
         except Exception as e:

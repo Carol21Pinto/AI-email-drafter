@@ -189,9 +189,9 @@
           company: data.company,
           role: data.role,
           recruiterEmail: data.hr_email || "", 
-          matchScore: data.match_score, 
-          matched: ["Auto-extracted from JD"], 
-          missing: [],   
+          matchScore: typeof data.match_score === "number" ? data.match_score : 80, 
+          matched: Array.isArray(data.matched_skills) && data.matched_skills.length > 0 ? data.matched_skills : ["Auto-extracted from JD"], 
+          missing: Array.isArray(data.missing_skills) ? data.missing_skills : [],   
           suggestedBullet: "Extracted profile details successfully mapped to job requirements.", 
           email: data.generated_email   
         });
@@ -373,6 +373,64 @@
                     <input value={extractedData[key as keyof typeof extractedData]} onChange={(e) => setExtractedData((d) => ({ ...d, [key]: e.target.value }))} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors" />
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* ATS Match Score & Skills */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={14} className="text-indigo-600" />
+                  <p className="text-sm font-medium text-slate-700">Resume &amp; JD Match Analysis</p>
+                </div>
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                  analysis.matchScore >= 75 
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
+                    : analysis.matchScore >= 50 
+                    ? "bg-amber-50 text-amber-700 border border-amber-200" 
+                    : "bg-rose-50 text-rose-700 border border-rose-200"
+                }`}>
+                  {analysis.matchScore >= 75 ? "Strong Match" : analysis.matchScore >= 50 ? "Moderate Match" : "Low Match"}
+                </span>
+              </div>
+
+              <div className="flex items-center sm:items-start gap-6 flex-col sm:flex-row">
+                <div className="flex flex-col items-center gap-1 shrink-0">
+                  <MatchRing pct={analysis.matchScore} />
+                  <span className="text-xs text-slate-400 font-medium">ATS Score</span>
+                </div>
+
+                <div className="flex-1 space-y-3 w-full">
+                  {analysis.matched.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                        ✓ Matched Skills &amp; Qualifications
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {analysis.matched.map((skill, idx) => (
+                          <span key={idx} className="bg-emerald-50 text-emerald-700 text-xs px-2.5 py-0.5 rounded-lg border border-emerald-200 font-medium">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {analysis.missing.length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                        ⚡ Recommended Skills / Gaps
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {analysis.missing.map((skill, idx) => (
+                          <span key={idx} className="bg-amber-50 text-amber-700 text-xs px-2.5 py-0.5 rounded-lg border border-amber-200 font-medium">
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
