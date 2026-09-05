@@ -45,14 +45,21 @@ _JSON_MODE_MODELS = {
 
 
 def _extract_json(text: str) -> dict[str, Any]:
-    """Extract JSON from AI output that may contain <think> tags or markdown fences."""
+    """Extract JSON from AI output that may contain <think> tags, markdown fences, or extra commentary."""
     # Strip <think>...</think> blocks (DeepSeek R1 style)
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
     # Strip markdown ```json ... ``` fences
     fence_match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
     if fence_match:
         text = fence_match.group(1).strip()
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except Exception:
+        # Fallback: extract the outermost JSON object { ... }
+        brace_match = re.search(r"(\{.*\})", text, re.DOTALL)
+        if brace_match:
+            return json.loads(brace_match.group(1))
+        raise
 
 _cached_models: list[str] = []
 
@@ -170,35 +177,75 @@ def parse_resume(file: UploadFile = File(...)):
         pdf_reader = PdfReader(io.BytesIO(pdf_bytes))
         
         extracted_text = ""
+        discovered_links: list[str] = []
+
         for page in pdf_reader.pages:
             # 1. Extract the visible text
-            extracted_text += (page.extract_text() or "") + "\n"
+            page_text = page.extract_text() or ""
+            extracted_text += page_text + "\n"
             
-            # 2. Extract the hidden hyperlinks
-            if "/Annots" in page:
-                annots = page["/Annots"]
-                for annot in (annots if isinstance(annots, list) else []):
-                    try:
-                        annot_obj = annot.get_object()
-                        if "/A" in annot_obj and "/URI" in annot_obj["/A"]:
-                            uri = annot_obj["/A"]["/URI"]
-                            # Inject the hidden URL directly into the text for the AI to read
-                            extracted_text += f"\n[Hidden Profile Link Found: {uri}]"
-                    except Exception:
-                        pass # Silently skip any broken annotations
-            
+            # 2. Extract hidden hyperlinks from PDF Annotations
+            try:
+                annots = page.get("/Annots")
+                if annots is not None:
+                    resolved_annots = annots.get_object() if hasattr(annots, "get_object") else annots
+                    if isinstance(resolved_annots, list):
+                        for annot in resolved_annots:
+                            try:
+                                annot_obj = annot.get_object() if hasattr(annot, "get_object") else annot
+                                if "/A" in annot_obj:
+                                    action = annot_obj["/A"]
+                                    action_obj = action.get_object() if hasattr(action, "get_object") else action
+                                    if "/URI" in action_obj:
+                                        uri = str(action_obj["/URI"]).strip()
+                                        if uri.startswith(("http://", "https://", "mailto:")):
+                                            discovered_links.append(uri)
+                            except Exception:
+                                pass
+            except Exception:
+                pass
+
+        # 3. Extract visible URLs and handles from text using Regex
+        url_pattern = r'(?:https?://|www\.)[^\s<>"\'\)]+|linkedin\.com/(?:in|company)/[^\s<>"\'\)]+|github\.com/[^\s<>"\'\)]+'
+        for match in re.findall(url_pattern, extracted_text, re.IGNORECASE):
+            cleaned = match.strip(".,;:()[]{}")
+            if not cleaned.startswith(("http://", "https://")):
+                cleaned = "https://" + cleaned
+            discovered_links.append(cleaned)
+
+        # Deduplicate links preserving order
+        unique_links = list(dict.fromkeys(discovered_links))
+        
+        if unique_links:
+            extracted_text += "\n\n--- EXTRACTED LINKS & URLS FOUND IN RESUME ---\n"
+            for link in unique_links:
+                extracted_text += f"- {link}\n"
+
         if not extracted_text.strip():
             return {"status": "error", "message": "Could not extract any text from the PDF. It might be an image-based PDF."}
 
-        # 3. Ask the AI to parse the text AND the new hidden links
+        # 4. Ask the AI to parse the text and links
         system_prompt = """
-        You are an expert HR assistant. Extract the following information from the provided resume text.
-        Format your response EXACTLY as a JSON object with these keys:
+        You are an expert HR assistant and resume parser.
+        Your task is to accurately extract candidate details from the provided resume text and links.
+
+        Follow these instructions carefully:
+        1. "name": Extract the candidate's actual full name. This is almost always at the very top of the resume. Do NOT use headers, job titles, or company names.
+        2. "portfolio": Extract their primary professional link.
+           - Look for a Personal Portfolio website URL, LinkedIn URL, or GitHub URL.
+           - Check the 'EXTRACTED LINKS & URLS' section and the resume body.
+           - Ensure it starts with https:// (e.g. https://linkedin.com/in/username or https://github.com/username).
+           - If multiple links exist, prioritize: Personal Portfolio > LinkedIn > GitHub.
+           - If none is found, return "".
+        3. "targetTitles": Identify 3-4 realistic target job titles matching their experience and skills, separated by commas (e.g. "Full Stack Developer, Software Engineer, Frontend Engineer").
+        4. "bio": Write a clear, impressive, and professional 2-3 sentence bio summarizing their core skills, key technologies, and experience level.
+
+        Return ONLY a JSON object with this exact structure:
         {
-          "name": "Applicant's full name",
-          "portfolio": "A LinkedIn, GitHub, or Portfolio URL (if found, else empty string)",
-          "targetTitles": "3-4 likely target job titles based on their experience, comma-separated",
-          "bio": "A concise, professional 2-sentence summary of their core skills and experience."
+          "name": "Candidate Full Name",
+          "portfolio": "https://...",
+          "targetTitles": "Title 1, Title 2, Title 3",
+          "bio": "Professional summary..."
         }
         """
 
@@ -208,11 +255,19 @@ def parse_resume(file: UploadFile = File(...)):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Resume Text:\n{extracted_text}"}
             ],
-            temperature=0.3
+            temperature=0.2
         )
 
         content_str = response.choices[0].message.content or "{}"
         profile_data = _extract_json(content_str)
+
+        # 5. Programmatic fallback for portfolio link if AI missed it
+        if not profile_data.get("portfolio") and unique_links:
+            preferred = [l for l in unique_links if "linkedin.com" in l or "github.com" in l]
+            if preferred:
+                profile_data["portfolio"] = preferred[0]
+            elif unique_links:
+                profile_data["portfolio"] = unique_links[0]
 
         return {
             "status": "success",
