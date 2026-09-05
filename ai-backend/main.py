@@ -53,10 +53,43 @@ def _extract_json(text: str) -> dict[str, Any]:
         text = fence_match.group(1).strip()
     return json.loads(text)
 
+_cached_models: list[str] = []
+
+def get_available_models() -> list[str]:
+    """Dynamically queries the Groq API for models currently active and accessible with this API key."""
+    global _cached_models
+    if _cached_models:
+        return _cached_models
+    try:
+        data = client.models.list().data
+        _cached_models = [m.id for m in data]
+        print(f"Discovered {len(_cached_models)} models from Groq: {_cached_models}")
+    except Exception as e:
+        print(f"Could not list Groq models: {e}")
+    return _cached_models
+
 def call_groq(models: list[str], messages: list[dict], temperature: float = 0.5) -> ChatCompletion:
     """Tries candidate models in order. If a model returns an error, seamlessly falls back to the next."""
+    available = get_available_models()
+
+    candidate_list: list[str] = []
+    # 1. Prioritize requested models that actually exist
+    for m in models:
+        if not available or m in available:
+            candidate_list.append(m)
+
+    # 2. Add other available chat models as fallback
+    if available:
+        for m in available:
+            if m not in candidate_list and not any(x in m for x in ("whisper", "guard", "safeguard", "embed")):
+                candidate_list.append(m)
+
+    # 3. Fallback to original list if empty
+    if not candidate_list:
+        candidate_list = list(models)
+
     last_error: Exception | None = None
-    for model in models:
+    for model in candidate_list:
         # Only pass response_format for models that support it
         kwargs: dict[str, Any] = {
             "model": model,
@@ -89,6 +122,15 @@ app = FastAPI()
 @app.get("/")
 def health_check():
     return {"status": "ok", "message": "Backend is running"}
+
+@app.get("/api/models")
+def list_models():
+    """Returns the list of active models accessible to the Groq API key."""
+    try:
+        available = get_available_models()
+        return {"status": "success", "models": available}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 # Allow requests from your Next.js frontend
 app.add_middleware(
