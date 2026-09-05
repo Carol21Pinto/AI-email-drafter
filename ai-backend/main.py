@@ -1,3 +1,4 @@
+# FastAPI AI Email Drafter Backend
 import os
 import json
 import re
