@@ -13,6 +13,7 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from openai import OpenAI
+from openai.types.chat import ChatCompletion
 from dotenv import load_dotenv
 from pypdf import PdfReader
 
@@ -29,17 +30,16 @@ client = OpenAI(
 TEXT_MODELS = [
     "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
-    "gemma2-9b-it",
-    "mixtral-8x7b-32768",
 ]
-VISION_MODELS = ["llama-3.2-90b-vision-preview", "llama-3.2-11b-vision-preview"]
+VISION_MODELS = [
+    "llama-3.2-11b-vision-preview",
+    "llama-3.2-90b-vision-preview",
+]
 
 # Models that support the response_format parameter
 _JSON_MODE_MODELS = {
     "llama-3.3-70b-versatile",
     "llama-3.1-8b-instant",
-    "gemma2-9b-it",
-    "mixtral-8x7b-32768",
 }
 
 
@@ -53,33 +53,33 @@ def _extract_json(text: str) -> dict[str, Any]:
         text = fence_match.group(1).strip()
     return json.loads(text)
 
-def call_groq(models: list[str], messages: list[dict], temperature: float = 0.5):
-    """Tries candidate models in order. If a model returns 404/not_found, seamlessly falls back to the next."""
+def call_groq(models: list[str], messages: list[dict], temperature: float = 0.5) -> ChatCompletion:
+    """Tries candidate models in order. If a model returns an error, seamlessly falls back to the next."""
     last_error: Exception | None = None
     for model in models:
         # Only pass response_format for models that support it
-        kwargs: dict = {
+        kwargs: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "temperature": temperature,
             "timeout": 30.0,
+            "stream": False,
         }
         if model in _JSON_MODE_MODELS:
             kwargs["response_format"] = {"type": "json_object"}
 
-        for attempt in range(2):
-            try:
-                return client.chat.completions.create(**kwargs)
-            except Exception as e:
-                last_error = e
-                err_str = str(e)
-                if "404" in err_str or "model_not_found" in err_str:
-                    print(f"Model '{model}' not found on Groq, trying next fallback model...")
-                    break
-                elif "429" in err_str:
-                    time.sleep(2)
-                else:
-                    break
+        try:
+            res = client.chat.completions.create(**kwargs)
+            if isinstance(res, ChatCompletion):
+                return res
+            return res  # type: ignore[return-value]
+        except Exception as e:
+            last_error = e
+            err_str = str(e)
+            print(f"Model '{model}' error ({err_str}), falling back to next candidate model...")
+            if "429" in err_str:
+                time.sleep(1)
+
     if last_error is not None:
         raise last_error
     raise RuntimeError("No models provided to call_groq()")
@@ -168,7 +168,8 @@ def parse_resume(file: UploadFile = File(...)):
             temperature=0.3
         )
 
-        profile_data = _extract_json(response.choices[0].message.content)
+        content_str = response.choices[0].message.content or "{}"
+        profile_data = _extract_json(content_str)
 
         return {
             "status": "success",
@@ -240,20 +241,21 @@ def generate_email(request: JobApplicationRequest):
         }}
         """
 
-    user_content = []
-    if request.job_description:
-        user_content.append({"type": "text", "text": f"Job Description:\n{request.job_description}"})
-    else:
-        user_content.append({"type": "text", "text": "Analyze the attached job poster."})
-    
     is_vision_request = bool(request.poster_base64 and request.poster_mime_type)
     if is_vision_request:
+        user_content: Any = []
+        if request.job_description:
+            user_content.append({"type": "text", "text": f"Job Description:\n{request.job_description}"})
+        else:
+            user_content.append({"type": "text", "text": "Analyze the attached job poster."})
         user_content.append({
             "type": "image_url",
             "image_url": {
                 "url": f"data:{request.poster_mime_type};base64,{request.poster_base64}"
             }
         })
+    else:
+        user_content = f"Job Description:\n{request.job_description}" if request.job_description else "Analyze the job requirements."
 
     candidate_models = VISION_MODELS if is_vision_request else TEXT_MODELS
 
@@ -267,7 +269,7 @@ def generate_email(request: JobApplicationRequest):
             temperature=0.7
         )
         
-        raw_content = response.choices[0].message.content
+        raw_content = response.choices[0].message.content or "{}"
         ai_data = _extract_json(raw_content)
 
         # Safely parse match_score (0-100)
