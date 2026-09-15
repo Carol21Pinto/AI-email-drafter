@@ -17,6 +17,7 @@ from openai import OpenAI
 from openai.types.chat import ChatCompletion
 from dotenv import load_dotenv
 from pypdf import PdfReader
+from bs4 import BeautifulSoup
 
 # Load environment variables from .env file
 load_dotenv()
@@ -167,6 +168,162 @@ class SendEmailRequest(BaseModel):
     user_email: str         
     google_token: str     
     refresh_token: str | None = None  
+
+class ExtractJobUrlRequest(BaseModel):
+    url: str
+
+
+def clean_extracted_text(text: str) -> str:
+    """Normalize whitespace and strip excessive blank lines from scraped HTML."""
+    lines = [line.strip() for line in text.splitlines()]
+    clean_lines: list[str] = []
+    prev_blank = False
+    for line in lines:
+        if line:
+            clean_lines.append(line)
+            prev_blank = False
+        elif not prev_blank:
+            clean_lines.append("")
+            prev_blank = True
+    result = "\n".join(clean_lines).strip()
+    return result[:12000]
+
+
+def extract_email_from_text(text: str) -> str:
+    """Extracts the first valid contact/recruiter email address found in the job text."""
+    matches = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', text)
+    filtered = [
+        m for m in matches 
+        if not any(ext in m.lower() for ext in [".png", ".jpg", ".jpeg", ".svg", ".webp", "example.com", "schema.org", "sentry.io"])
+    ]
+    return filtered[0] if filtered else ""
+
+
+# --- ENDPOINT 0: Scrape & Extract Job from Public URL ---
+@app.post("/api/extract-job-url")
+def extract_job_url(request: ExtractJobUrlRequest):
+    raw_url = request.url.strip()
+    if not raw_url:
+        return {"status": "error", "message": "Please provide a valid URL."}
+
+    if not raw_url.startswith(("http://", "https://")):
+        raw_url = "https://" + raw_url
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
+
+    try:
+        resp = requests.get(raw_url, headers=headers, timeout=12, allow_redirects=True)
+    except Exception as e:
+        return {"status": "error", "message": f"Unable to reach the website: {str(e)}"}
+
+    if resp.status_code in (401, 403, 429):
+        return {
+            "status": "error",
+            "message": "This website is protected by an anti-bot check or requires login. Please copy-paste the job description text directly or drop a screenshot."
+        }
+
+    if resp.status_code != 200:
+        return {
+            "status": "error",
+            "message": f"Received HTTP {resp.status_code} while loading the page. Please copy-paste the text directly."
+        }
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # Remove non-content elements
+    for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "svg", "button", "iframe", "form"]):
+        tag.decompose()
+
+    company = ""
+    role = ""
+    desc_text = ""
+    domain = raw_url.lower()
+
+    # 1. Specialized: LinkedIn Public Guest Job View
+    if "linkedin.com" in domain:
+        t_el = soup.find("h1", class_=lambda c: bool(c and "topcard__title" in c)) or soup.find("h1") or soup.find("h2")
+        if t_el:
+            role = t_el.get_text(strip=True)
+        c_el = soup.find("a", class_=lambda c: bool(c and "topcard__org-name" in c)) or soup.find("span", class_=lambda c: bool(c and "topcard__flavor" in c))
+        if c_el:
+            company = c_el.get_text(strip=True)
+        d_el = soup.find("div", class_=lambda c: bool(c and "description__text" in c)) or soup.find("section", class_=lambda c: bool(c and "show-more-less-html" in c)) or soup.find("div", class_=lambda c: bool(c and "decorated-job-posting__details" in c))
+        if d_el:
+            desc_text = d_el.get_text(separator="\n", strip=True)
+
+    # 2. Specialized: Greenhouse ATS
+    elif "greenhouse.io" in domain:
+        t_el = soup.find(class_="app-title") or soup.find("h1")
+        if t_el:
+            role = t_el.get_text(strip=True)
+        c_el = soup.find(class_="company-name")
+        if c_el:
+            company = c_el.get_text(strip=True)
+        d_el = soup.find(id="content") or soup.find(class_="body")
+        if d_el:
+            desc_text = d_el.get_text(separator="\n", strip=True)
+
+    # 3. Specialized: Lever ATS
+    elif "lever.co" in domain:
+        t_el = soup.find(class_="posting-headline")
+        if t_el:
+            h = t_el.find("h2") or t_el.find("h1")
+            role = h.get_text(strip=True) if h else t_el.get_text(strip=True)
+        d_el = soup.find(class_="content") or soup.find(class_="section-wrapper")
+        if d_el:
+            desc_text = d_el.get_text(separator="\n", strip=True)
+
+    # 4. Universal Fallback (Company Career Sites, Indeed, Wellfound, etc.)
+    if not desc_text:
+        og_title = soup.find("meta", property="og:title") or soup.find("meta", attrs={"name": "title"})
+        page_title = og_title.get("content", "").strip() if og_title else ""
+        if not page_title and soup.title:
+            page_title = soup.title.get_text(strip=True)
+
+        if page_title and not role:
+            if " at " in page_title:
+                parts = page_title.split(" at ", 1)
+                role = parts[0].strip()
+                if not company:
+                    company = parts[1].split("|")[0].split("-")[0].strip()
+            elif " - " in page_title:
+                parts = page_title.split(" - ", 1)
+                role = parts[0].strip()
+                if not company:
+                    company = parts[1].split("|")[0].strip()
+            else:
+                role = page_title
+
+        main_container = soup.find("main") or soup.find("article") or soup.find(id=re.compile(r"job|desc|content", re.I)) or soup.find(class_=re.compile(r"job|desc|content", re.I))
+        if main_container:
+            desc_text = main_container.get_text(separator="\n", strip=True)
+        elif soup.body:
+            desc_text = soup.body.get_text(separator="\n", strip=True)
+
+    clean_text = clean_extracted_text(desc_text)
+
+    if not clean_text or len(clean_text) < 40:
+        return {
+            "status": "error",
+            "message": "Could not extract sufficient job details from this URL. Please copy-paste the text directly or upload a screenshot."
+        }
+
+    hr_email = extract_email_from_text(clean_text)
+
+    return {
+        "status": "success",
+        "url": raw_url,
+        "company": company or "Unknown",
+        "role": role or "Unknown",
+        "job_description": clean_text,
+        "hr_email": hr_email
+    }
 
 
 # --- ENDPOINT 1: Parse the PDF Resume ---

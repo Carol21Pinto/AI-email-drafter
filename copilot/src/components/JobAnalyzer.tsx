@@ -1,11 +1,14 @@
-  "use client";
+"use client";
 
   import { useState, useRef, KeyboardEvent, useEffect } from "react";
   import { supabase } from "@/lib/supabaseClient";
   import {
-    Zap, FileText, RefreshCw, Send, Edit3, CheckCheck, Loader2, Sparkles, X
+    Zap, FileText, RefreshCw, Send, Edit3, CheckCheck, Loader2, Sparkles, X,
+    Link2, Image as ImageIcon, AlignLeft, CheckCircle2, ArrowRight
   } from "lucide-react";
   import { type AnalysisResult } from "@/lib/mockData";
+
+  type InputMode = "url" | "text" | "poster";
 
   function MatchRing({ pct, size = 72 }: { pct: number; size?: number }) {
     const r = 28;
@@ -49,6 +52,12 @@
 
     const [applicantName, setApplicantName] = useState("Applicant");
     const [resumeTextContext, setResumeTextContext] = useState("");
+
+    // --- Job Input Mode & URL Scraper State ---
+    const [inputMode, setInputMode] = useState<InputMode>("url");
+    const [jobUrl, setJobUrl] = useState("");
+    const [isExtractingUrl, setIsExtractingUrl] = useState(false);
+    const [urlExtractedMeta, setUrlExtractedMeta] = useState<{ company: string; role: string; url: string } | null>(null);
     
     // --- NEW: Google Token State ---
     const [googleToken, setGoogleToken] = useState<string | null>(null);
@@ -155,8 +164,102 @@
       }
     }
 
+    async function handleExtractUrl() {
+      const trimmed = jobUrl.trim();
+      if (!trimmed) {
+        alert("Please enter a job posting URL (e.g. LinkedIn, Greenhouse, Lever, or career page).");
+        return;
+      }
+
+      setIsExtractingUrl(true);
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/extract-job-url`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: trimmed }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data.status === "error") {
+          throw new Error(data.message);
+        }
+
+        setJdText(data.job_description);
+
+        if (data.company && data.company !== "Unknown") {
+          setExtractedData((d) => ({ ...d, company: data.company }));
+        }
+        if (data.role && data.role !== "Unknown") {
+          setExtractedData((d) => ({ ...d, role: data.role }));
+        }
+        if (data.hr_email && data.hr_email.trim() !== "") {
+          addEmail(data.hr_email);
+        }
+
+        setUrlExtractedMeta({
+          company: data.company || "Detected Company",
+          role: data.role || "Detected Role",
+          url: data.url
+        });
+
+      } catch (error: any) {
+        console.error("Job URL Extraction Error:", error);
+        alert(error instanceof Error ? error.message : "Could not fetch job from this URL. Please paste the text directly.");
+      } finally {
+        setIsExtractingUrl(false);
+      }
+    }
+
     async function handleAnalyze() {
-      if (!jdText.trim() && !posterBase64) return;
+      let activeJdText = jdText.trim();
+
+      // Auto-fetch if user entered a URL and clicked Analyze without clicking Fetch Job first
+      if (inputMode === "url" && jobUrl.trim() && !activeJdText) {
+        setIsExtractingUrl(true);
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/extract-job-url`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: jobUrl.trim() }),
+          });
+          const data = await response.json();
+          if (data.status === "error") throw new Error(data.message);
+
+          activeJdText = data.job_description;
+          setJdText(data.job_description);
+
+          if (data.company && data.company !== "Unknown") {
+            setExtractedData((d) => ({ ...d, company: data.company }));
+          }
+          if (data.role && data.role !== "Unknown") {
+            setExtractedData((d) => ({ ...d, role: data.role }));
+          }
+          if (data.hr_email) {
+            addEmail(data.hr_email);
+          }
+          setUrlExtractedMeta({
+            company: data.company || "Detected Company",
+            role: data.role || "Detected Role",
+            url: data.url
+          });
+        } catch (err: any) {
+          setIsExtractingUrl(false);
+          alert(err.message || "Could not fetch job from URL. Please paste text directly.");
+          return;
+        } finally {
+          setIsExtractingUrl(false);
+        }
+      }
+
+      if (!activeJdText && !posterBase64) {
+        alert("Please provide a job posting URL, paste the JD text, or upload a poster image.");
+        return;
+      }
+
       setState("loading");
 
       try {
@@ -164,8 +267,8 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            company_name: "Pending AI Extraction", 
-            job_description: jdText,
+            company_name: extractedData.company || "Pending AI Extraction", 
+            job_description: activeJdText,
             applicant_name: applicantName, 
             resume_text: resumeTextContext, 
             poster_base64: posterBase64,
@@ -277,6 +380,8 @@
         onApplicationSent(extractedData.company, extractedData.role, targetEmails[0]);
         setState("idle");
         setJdText("");
+        setJobUrl("");
+        setUrlExtractedMeta(null);
         setTargetEmails([]);
         setEmailInput("");
         setAnalysis(null);
@@ -336,25 +441,175 @@
             </div>
           </div>
 
-          <div className="mb-3 flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
-            <span className="text-sm text-slate-600">Upload a job poster image (instead of pasting text)</span>
-            <input type="file" accept="image/*" className="hidden" ref={posterInputRef} onChange={handlePosterUpload} />
-            <button onClick={() => posterInputRef.current?.click()} className="text-xs font-medium bg-white hover:bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-300 transition-colors shadow-sm">
-              {posterFile ? `Uploaded: ${posterFile.name}` : "🖼️ Upload Image"}
+          {/* Input Mode Tabs */}
+          <div className="flex bg-slate-100 p-1 rounded-xl gap-1 mb-4">
+            <button
+              type="button"
+              onClick={() => setInputMode("url")}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-medium rounded-lg transition-all ${
+                inputMode === "url"
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Link2 size={14} />
+              <span>Job URL (Free)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setInputMode("text")}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-medium rounded-lg transition-all ${
+                inputMode === "text"
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <AlignLeft size={14} />
+              <span>Paste Text</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setInputMode("poster")}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-medium rounded-lg transition-all ${
+                inputMode === "poster"
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <ImageIcon size={14} />
+              <span>Job Poster Image</span>
             </button>
           </div>
 
-          <textarea
-            value={jdText}
-            onChange={(e) => setJdText(e.target.value)}
-            onPaste={handlePaste} // <--- ADD THIS LINE
-            className={`w-full border border-slate-200 rounded-xl px-4 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all ${isAnalyzed ? "h-28" : "h-32"}`}
-            placeholder="...or paste the full text job description here. You can also Ctrl+V an image!"
-          />
+          {/* 1. Job URL Mode */}
+          {inputMode === "url" && (
+            <div className="space-y-3 mb-3">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Link2 size={16} />
+                  </div>
+                  <input
+                    type="url"
+                    value={jobUrl}
+                    onChange={(e) => setJobUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleExtractUrl();
+                      }
+                    }}
+                    placeholder="Paste LinkedIn, Greenhouse, Lever, Indeed, or career page URL..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-all"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleExtractUrl}
+                  disabled={isExtractingUrl || !jobUrl.trim()}
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 shadow-sm"
+                >
+                  {isExtractingUrl ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      Fetching...
+                    </>
+                  ) : (
+                    <>
+                      <span>Fetch Job</span>
+                      <ArrowRight size={14} />
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {urlExtractedMeta && (
+                <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 text-emerald-900 px-3.5 py-2 rounded-xl text-xs">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />
+                    <span>
+                      Auto-detected: <strong className="font-semibold">{urlExtractedMeta.role}</strong> at <strong className="font-semibold">{urlExtractedMeta.company}</strong>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUrlExtractedMeta(null);
+                      setJdText("");
+                      setJobUrl("");
+                    }}
+                    className="text-emerald-700 hover:text-emerald-900 font-medium ml-2 underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+
+              {jdText && (
+                <div>
+                  <div className="flex justify-between items-center text-xs text-slate-500 mb-1 px-1">
+                    <span>Extracted Job Description</span>
+                    <span>{jdText.length} characters</span>
+                  </div>
+                  <textarea
+                    value={jdText}
+                    onChange={(e) => setJdText(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-xs leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 h-28 bg-slate-50 font-sans"
+                    placeholder="Fetched job description will appear here..."
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 2. Paste Text Mode */}
+          {inputMode === "text" && (
+            <textarea
+              value={jdText}
+              onChange={(e) => setJdText(e.target.value)}
+              onPaste={handlePaste}
+              className={`w-full border border-slate-200 rounded-xl px-4 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all mb-3 ${isAnalyzed ? "h-28" : "h-32"}`}
+              placeholder="Paste the full text job description here. (You can also Ctrl+V an image!)"
+            />
+          )}
+
+          {/* 3. Job Poster Image Mode */}
+          {inputMode === "poster" && (
+            <div className="space-y-3 mb-3">
+              <div 
+                onClick={() => posterInputRef.current?.click()}
+                className="border-2 border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50/20 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-colors"
+              >
+                <input type="file" accept="image/*" className="hidden" ref={posterInputRef} onChange={handlePosterUpload} />
+                <ImageIcon size={32} className="text-slate-400 mb-2" />
+                <p className="text-sm font-medium text-slate-700">Click to upload or drag & drop job poster</p>
+                <p className="text-xs text-slate-400 mt-1">PNG, JPG, WebP (or Ctrl+V in text tab)</p>
+                {posterFile && (
+                  <div className="mt-3 bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-700 flex items-center gap-1.5 shadow-xs">
+                    <span>✓ {posterFile.name}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end mt-3">
-            <button onClick={handleAnalyze} disabled={isLoading || (!jdText.trim() && !posterBase64)} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium text-sm px-5 py-2.5 rounded-xl transition-colors">
-              {isLoading ? <><Loader2 size={14} className="animate-spin" />Analyzing with Groq…</> : <><Zap size={14} />Analyze &amp; Match</>}
+            <button
+              onClick={handleAnalyze}
+              disabled={isLoading || isExtractingUrl || (!jdText.trim() && !posterBase64 && !(inputMode === "url" && jobUrl.trim()))}
+              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed text-white font-medium text-sm px-5 py-2.5 rounded-xl transition-colors"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  Analyzing with Groq…
+                </>
+              ) : (
+                <>
+                  <Zap size={14} />
+                  Analyze &amp; Match
+                </>
+              )}
             </button>
           </div>
         </div>

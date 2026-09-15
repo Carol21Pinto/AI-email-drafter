@@ -26,8 +26,9 @@
    - The backend extracts both visible text and hidden hyperlinks (LinkedIn, GitHub, Portfolio) from PDF annotations.
    - Generates your core profile (full name, target titles, professional links, and career bio).
 
-2. **Job Description & Poster Analysis**:
-   - Paste a text JD or drag-and-drop a job poster image.
+2. **Job Description, Poster & URL Analysis**:
+   - Paste a direct job link (LinkedIn, Greenhouse, Lever, Indeed, or career pages), paste a text JD, or drag-and-drop a job poster image.
+   - Built-in free web scraper fetches and cleans job requirements automatically from public links.
    - Multimodal models process images directly via OCR and layout understanding.
    - Extracts company name, role title, and recruiter emails automatically.
 
