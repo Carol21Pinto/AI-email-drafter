@@ -8,7 +8,7 @@
   } from "lucide-react";
   import { type AnalysisResult } from "@/lib/mockData";
 
-  type InputMode = "url" | "text" | "poster";
+  type InputMode = "url" | "text";
 
   function MatchRing({ pct, size = 72 }: { pct: number; size?: number }) {
     const r = 28;
@@ -196,7 +196,9 @@
         if (data.role && data.role !== "Unknown") {
           setExtractedData((d) => ({ ...d, role: data.role }));
         }
-        if (data.hr_email && data.hr_email.trim() !== "") {
+        if (Array.isArray(data.hr_emails) && data.hr_emails.length > 0) {
+          data.hr_emails.forEach((em: string) => addEmail(em));
+        } else if (data.hr_email && data.hr_email.trim() !== "") {
           addEmail(data.hr_email);
         }
 
@@ -238,7 +240,9 @@
           if (data.role && data.role !== "Unknown") {
             setExtractedData((d) => ({ ...d, role: data.role }));
           }
-          if (data.hr_email) {
+          if (Array.isArray(data.hr_emails) && data.hr_emails.length > 0) {
+            data.hr_emails.forEach((em: string) => addEmail(em));
+          } else if (data.hr_email) {
             addEmail(data.hr_email);
           }
           setUrlExtractedMeta({
@@ -441,7 +445,7 @@
             </div>
           </div>
 
-          {/* Input Mode Tabs */}
+          {/* Input Mode Tabs - 2 Options */}
           <div className="flex bg-slate-100 p-1 rounded-xl gap-1 mb-4">
             <button
               type="button"
@@ -465,19 +469,7 @@
               }`}
             >
               <AlignLeft size={14} />
-              <span>Paste Text</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setInputMode("poster")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-medium rounded-lg transition-all ${
-                inputMode === "poster"
-                  ? "bg-white text-indigo-600 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <ImageIcon size={14} />
-              <span>Job Poster Image</span>
+              <span>Paste Text / Image</span>
             </button>
           </div>
 
@@ -562,34 +554,53 @@
             </div>
           )}
 
-          {/* 2. Paste Text Mode */}
+          {/* 2. Paste Text & Image Mode (Combined) */}
           {inputMode === "text" && (
-            <textarea
-              value={jdText}
-              onChange={(e) => setJdText(e.target.value)}
-              onPaste={handlePaste}
-              className={`w-full border border-slate-200 rounded-xl px-4 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all mb-3 ${isAnalyzed ? "h-28" : "h-32"}`}
-              placeholder="Paste the full text job description here. (You can also Ctrl+V an image!)"
-            />
-          )}
-
-          {/* 3. Job Poster Image Mode */}
-          {inputMode === "poster" && (
             <div className="space-y-3 mb-3">
-              <div 
-                onClick={() => posterInputRef.current?.click()}
-                className="border-2 border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50/20 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-colors"
-              >
-                <input type="file" accept="image/*" className="hidden" ref={posterInputRef} onChange={handlePosterUpload} />
-                <ImageIcon size={32} className="text-slate-400 mb-2" />
-                <p className="text-sm font-medium text-slate-700">Click to upload or drag & drop job poster</p>
-                <p className="text-xs text-slate-400 mt-1">PNG, JPG, WebP (or Ctrl+V in text tab)</p>
-                {posterFile && (
-                  <div className="mt-3 bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-700 flex items-center gap-1.5 shadow-xs">
-                    <span>✓ {posterFile.name}</span>
-                  </div>
-                )}
+              <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <ImageIcon size={16} className="text-slate-500 shrink-0" />
+                  <span className="text-xs text-slate-600">
+                    {posterFile ? (
+                      <span className="text-emerald-700 font-medium">✓ Image poster attached: {posterFile.name}</span>
+                    ) : (
+                      "Upload a poster image or press Ctrl+V inside the box to paste screenshot"
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input type="file" accept="image/*" className="hidden" ref={posterInputRef} onChange={handlePosterUpload} />
+                  <button
+                    type="button"
+                    onClick={() => posterInputRef.current?.click()}
+                    className="text-xs font-medium bg-white hover:bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-300 transition-colors shadow-xs flex items-center gap-1.5"
+                  >
+                    <ImageIcon size={13} />
+                    <span>{posterFile ? "Change Image" : "🖼️ Upload Image"}</span>
+                  </button>
+                  {posterFile && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPosterFile(null);
+                        setPosterBase64(null);
+                        if (posterInputRef.current) posterInputRef.current.value = "";
+                      }}
+                      className="text-xs text-rose-600 hover:text-rose-800 font-medium px-1.5 py-1"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
               </div>
+
+              <textarea
+                value={jdText}
+                onChange={(e) => setJdText(e.target.value)}
+                onPaste={handlePaste}
+                className={`w-full border border-slate-200 rounded-xl px-4 py-3 text-sm leading-relaxed resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all ${isAnalyzed ? "h-28" : "h-32"}`}
+                placeholder="Paste the full job description text here, or press Ctrl+V to paste a job screenshot!"
+              />
             </div>
           )}
 

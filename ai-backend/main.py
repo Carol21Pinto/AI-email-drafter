@@ -189,14 +189,17 @@ def clean_extracted_text(text: str) -> str:
     return result[:12000]
 
 
-def extract_email_from_text(text: str) -> str:
-    """Extracts the first valid contact/recruiter email address found in the job text."""
+def extract_emails_from_text(text: str) -> list[str]:
+    """Extracts valid contact/recruiter email addresses found in the job text."""
     matches = re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', text)
-    filtered = [
-        m for m in matches 
-        if not any(ext in m.lower() for ext in [".png", ".jpg", ".jpeg", ".svg", ".webp", "example.com", "schema.org", "sentry.io"])
-    ]
-    return filtered[0] if filtered else ""
+    filtered: list[str] = []
+    for m in matches:
+        m_clean = m.strip(".,;:()[]{}<>\"'")
+        low = m_clean.lower()
+        if not any(ext in low for ext in [".png", ".jpg", ".jpeg", ".svg", ".webp", "example.com", "schema.org", "sentry.io", "w3.org", "github.com"]):
+            if m_clean not in filtered:
+                filtered.append(m_clean)
+    return filtered
 
 
 # --- ENDPOINT 0: Scrape & Extract Job from Public URL ---
@@ -320,7 +323,7 @@ def extract_job_url(request: ExtractJobUrlRequest):
             "message": "Could not extract sufficient job details from this URL. Please copy-paste the text directly or upload a screenshot."
         }
 
-    hr_email = extract_email_from_text(clean_text)
+    hr_emails = extract_emails_from_text(clean_text)
 
     return {
         "status": "success",
@@ -328,7 +331,8 @@ def extract_job_url(request: ExtractJobUrlRequest):
         "company": company or "Unknown",
         "role": role or "Unknown",
         "job_description": clean_text,
-        "hr_email": hr_email
+        "hr_email": hr_emails[0] if hr_emails else "",
+        "hr_emails": hr_emails
     }
 
 
@@ -554,11 +558,17 @@ def generate_email(request: JobApplicationRequest):
         if not isinstance(missing_skills, list):
             missing_skills = []
         
+        detected_hr = str(ai_data.get("hr_email", "")).strip()
+        if not detected_hr and request.job_description:
+            fallback_emails = extract_emails_from_text(request.job_description)
+            if fallback_emails:
+                detected_hr = fallback_emails[0]
+
         return {
             "status": "success",
             "company": ai_data.get("company", "Unknown"),
             "role": ai_data.get("role", "Unknown"),
-            "hr_email": ai_data.get("hr_email", ""),
+            "hr_email": detected_hr,
             "generated_subject": ai_data.get("email_subject", f"Application for {ai_data.get('role', 'Position')}"),
             "generated_email": ai_data.get("email_draft", ""),
             "match_score": match_score,
