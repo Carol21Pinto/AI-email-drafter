@@ -282,7 +282,13 @@ def extract_job_url(request: ExtractJobUrlRequest):
     # 4. Universal Fallback (Company Career Sites, Indeed, Wellfound, etc.)
     if not desc_text:
         og_title = soup.find("meta", property="og:title") or soup.find("meta", attrs={"name": "title"})
-        page_title = og_title.get("content", "").strip() if og_title else ""
+        page_title = ""
+        if og_title and hasattr(og_title, "get"):
+            content_attr = og_title.get("content")
+            if isinstance(content_attr, list):
+                page_title = " ".join(str(x) for x in content_attr).strip()
+            elif isinstance(content_attr, str):
+                page_title = content_attr.strip()
         if not page_title and soup.title:
             page_title = soup.title.get_text(strip=True)
 
