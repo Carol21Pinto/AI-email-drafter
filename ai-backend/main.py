@@ -338,6 +338,19 @@ def extract_job_url(request: ExtractJobUrlRequest):
 
     hr_emails = extract_emails_from_text(clean_text)
 
+    # Check for mailto: links in HTML
+    for a in soup.find_all("a", href=True):
+        raw_href = a.get("href")
+        href_items = raw_href if isinstance(raw_href, list) else [raw_href]
+        for item in href_items:
+            if not isinstance(item, str):
+                continue
+            href = item.strip()
+            if href.lower().startswith("mailto:"):
+                mail = href[7:].split("?")[0].strip()
+                if mail and "@" in mail and mail not in hr_emails:
+                    hr_emails.append(mail)
+
     return {
         "status": "success",
         "url": raw_url,
@@ -508,12 +521,17 @@ def generate_email(request: JobApplicationRequest):
         Provide a 1-sentence "strengths_summary" highlighting the applicant's top advantage for this specific role.
         Provide a 1-sentence "weaknesses_summary" noting the most important missing requirement or gap to be aware of.
 
+        EMAIL EXTRACTION:
+        Find and extract ALL recruiter, HR, careers, hiring, or contact email addresses mentioned in the job description or flyer/poster image.
+        Return ALL of them in the "hr_emails" array (e.g. ["recruiter@company.com", "jobs@company.com"]). If none are found, return [].
+
         OUTPUT FORMAT:
         You MUST output ONLY valid JSON using this exact schema:
         {{
         "company": "Extracted company name",
         "role": "Extracted job title",
-        "hr_email": "Extracted HR email (or empty string)",
+        "hr_emails": ["recruiter@company.com"],
+        "hr_email": "Primary extracted HR email or empty string",
         "match_score": 85,
         "matched_skills": ["Skill 1", "Skill 2"],
         "missing_skills": ["Skill 3", "Skill 4"],
@@ -571,17 +589,39 @@ def generate_email(request: JobApplicationRequest):
         if not isinstance(missing_skills, list):
             missing_skills = []
         
-        detected_hr = str(ai_data.get("hr_email", "")).strip()
-        if not detected_hr and request.job_description:
-            fallback_emails = extract_emails_from_text(request.job_description)
-            if fallback_emails:
-                detected_hr = fallback_emails[0]
+        # Extract all detected HR emails from AI
+        detected_emails: list[str] = []
+        raw_hr_emails = ai_data.get("hr_emails", [])
+        if isinstance(raw_hr_emails, list):
+            for em in raw_hr_emails:
+                if isinstance(em, str) and "@" in em:
+                    clean_em = em.strip().strip(".,;:()[]{}<>\"'")
+                    if clean_em and clean_em not in detected_emails:
+                        detected_emails.append(clean_em)
+        elif isinstance(raw_hr_emails, str) and "@" in raw_hr_emails:
+            clean_em = raw_hr_emails.strip().strip(".,;:()[]{}<>\"'")
+            if clean_em and clean_em not in detected_emails:
+                detected_emails.append(clean_em)
+
+        raw_hr_email = str(ai_data.get("hr_email", "")).strip().strip(".,;:()[]{}<>\"'")
+        if raw_hr_email and "@" in raw_hr_email and raw_hr_email not in detected_emails:
+            detected_emails.append(raw_hr_email)
+
+        # Regex fallback / augment from job_description text
+        if request.job_description:
+            regex_emails = extract_emails_from_text(request.job_description)
+            for em in regex_emails:
+                if em not in detected_emails:
+                    detected_emails.append(em)
+
+        primary_email = detected_emails[0] if detected_emails else ""
 
         return {
             "status": "success",
             "company": ai_data.get("company", "Unknown"),
             "role": ai_data.get("role", "Unknown"),
-            "hr_email": detected_hr,
+            "hr_email": primary_email,
+            "hr_emails": detected_emails,
             "generated_subject": ai_data.get("email_subject", f"Application for {ai_data.get('role', 'Position')}"),
             "generated_email": ai_data.get("email_draft", ""),
             "match_score": match_score,

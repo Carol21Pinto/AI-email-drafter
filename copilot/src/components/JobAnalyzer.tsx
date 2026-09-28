@@ -113,10 +113,24 @@
 
     function addEmail(email: string) {
       const trimmed = email.trim().replace(/,/g, '');
-      if (trimmed && !targetEmails.includes(trimmed)) {
-        setTargetEmails([...targetEmails, trimmed]);
+      if (trimmed && trimmed.includes('@')) {
+        setTargetEmails(prev => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
       }
       setEmailInput("");
+    }
+
+    function addEmails(emails: string[]) {
+      if (!Array.isArray(emails) || emails.length === 0) return;
+      setTargetEmails(prev => {
+        const next = [...prev];
+        emails.forEach(e => {
+          const trimmed = e.trim().replace(/,/g, '');
+          if (trimmed && trimmed.includes('@') && !next.includes(trimmed)) {
+            next.push(trimmed);
+          }
+        });
+        return next;
+      });
     }
 
     function removeEmail(emailToRemove: string) {
@@ -207,7 +221,7 @@ function getHttpErrorMessage(status: number): string {
           setExtractedData((d) => ({ ...d, role: data.role }));
         }
         if (Array.isArray(data.hr_emails) && data.hr_emails.length > 0) {
-          data.hr_emails.forEach((em: string) => addEmail(em));
+          addEmails(data.hr_emails);
         } else if (data.hr_email && data.hr_email.trim() !== "") {
           addEmail(data.hr_email);
         }
@@ -252,7 +266,7 @@ function getHttpErrorMessage(status: number): string {
             setExtractedData((d) => ({ ...d, role: data.role }));
           }
           if (Array.isArray(data.hr_emails) && data.hr_emails.length > 0) {
-            data.hr_emails.forEach((em: string) => addEmail(em));
+            addEmails(data.hr_emails);
           } else if (data.hr_email) {
             addEmail(data.hr_email);
           }
@@ -299,14 +313,20 @@ function getHttpErrorMessage(status: number): string {
         setEmailContent(data.generated_email);
         setEmailSubject(data.generated_subject);
         
-        if (data.hr_email && data.hr_email.trim() !== "") {
-            addEmail(data.hr_email);
+        if (Array.isArray(data.hr_emails) && data.hr_emails.length > 0) {
+          addEmails(data.hr_emails);
+        } else if (data.hr_email && data.hr_email.trim() !== "") {
+          addEmail(data.hr_email);
         }
+
+        const displayRecruiter = Array.isArray(data.hr_emails) && data.hr_emails.length > 0
+          ? data.hr_emails.join(", ")
+          : (data.hr_email || "");
 
         setAnalysis({
           company: data.company,
           role: data.role,
-          recruiterEmail: data.hr_email || "", 
+          recruiterEmail: displayRecruiter, 
           matchScore: typeof data.match_score === "number" ? data.match_score : 80, 
           matched: Array.isArray(data.matched_skills) && data.matched_skills.length > 0 ? data.matched_skills : ["Auto-extracted from JD"], 
           missing: Array.isArray(data.missing_skills) ? data.missing_skills : [],   
