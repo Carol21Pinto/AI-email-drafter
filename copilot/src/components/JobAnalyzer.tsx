@@ -164,6 +164,16 @@
       }
     }
 
+function getHttpErrorMessage(status: number): string {
+  if (status === 502 || status === 503 || status === 504) {
+    return "The backend server is waking up or temporarily unavailable (Hugging Face Spaces cold start). Please wait ~30-60 seconds and try again.";
+  }
+  if (status === 404) {
+    return "Backend endpoint not found (404). Please ensure the backend is deployed and running.";
+  }
+  return `Server responded with status ${status}. Please try again.`;
+}
+
     async function handleExtractUrl() {
       const trimmed = jobUrl.trim();
       if (!trimmed) {
@@ -180,7 +190,7 @@
         });
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error(getHttpErrorMessage(response.status));
         }
 
         const data = await response.json();
@@ -228,6 +238,7 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url: jobUrl.trim() }),
           });
+          if (!response.ok) throw new Error(getHttpErrorMessage(response.status));
           const data = await response.json();
           if (data.status === "error") throw new Error(data.message);
 
@@ -280,7 +291,7 @@
           }),
         });
 
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) throw new Error(getHttpErrorMessage(response.status));
 
         const data = await response.json();
         if (data.status === "error") throw new Error(data.message);
@@ -350,7 +361,7 @@
         });
 
         if (!response.ok) {
-          throw new Error("Backend validation failed. Email not sent.");
+          throw new Error(getHttpErrorMessage(response.status));
         }
 
         const data = await response.json();

@@ -113,7 +113,12 @@ async function connectGmail() {
         body: formData,
       });
 
-      if (!response.ok) throw new Error("Backend failed to respond.");
+      if (!response.ok) {
+        if (response.status === 502 || response.status === 503 || response.status === 504) {
+          throw new Error("Backend server is waking up (Hugging Face Spaces cold start). Please wait ~30-60 seconds and try again.");
+        }
+        throw new Error("Backend failed to respond.");
+      }
       
       const parsedData = await response.json();
       if (parsedData.status === "error") throw new Error(parsedData.message);

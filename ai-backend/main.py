@@ -22,11 +22,22 @@ from bs4 import BeautifulSoup
 # Load environment variables from .env file
 load_dotenv()
 
-# Initialize using Groq's base URL and your Groq API key
-client = OpenAI(
-    api_key=os.environ.get("GROQ_API_KEY"),
-    base_url="https://api.groq.com/openai/v1",
-)
+_client: OpenAI | None = None
+
+def get_groq_client() -> OpenAI:
+    """Lazily initializes and returns the Groq OpenAI client.
+    Prevents the server from crashing at boot if GROQ_API_KEY is not yet loaded."""
+    global _client
+    if _client is not None:
+        return _client
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        raise ValueError("GROQ_API_KEY is missing. Please set the GROQ_API_KEY secret in your Hugging Face Space settings or .env file.")
+    _client = OpenAI(
+        api_key=api_key.strip(),
+        base_url="https://api.groq.com/openai/v1",
+    )
+    return _client
 
 # Verified active Groq models for this account with dynamic discovery fallback
 TEXT_MODELS = [
@@ -71,6 +82,7 @@ def get_available_models() -> list[str]:
     if _cached_models:
         return _cached_models
     try:
+        client = get_groq_client()
         data = client.models.list().data
         _cached_models = [m.id for m in data]
         print(f"Discovered {len(_cached_models)} models from Groq: {_cached_models}")
@@ -112,6 +124,7 @@ def call_groq(models: list[str], messages: list[dict], temperature: float = 0.5)
             kwargs["response_format"] = {"type": "json_object"}
 
         try:
+            client = get_groq_client()
             res = client.chat.completions.create(**kwargs)
             if isinstance(res, ChatCompletion):
                 return res
